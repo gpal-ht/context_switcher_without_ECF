@@ -84,6 +84,8 @@ public static class Program
                 return Insights(sessions, rest);
             case ["blockers", .. var rest]:
                 return Blockers(registry, sessions, rest);
+            case ["estimation", .. var rest]:
+                return Estimation(sessions, rest);
             case ["resume"]:
                 return Resume(registry, sessions);
             case ["status"]:
@@ -359,6 +361,41 @@ public static class Program
         return 0;
     }
 
+    private static int Estimation(WorkSessionService sessions, string[] rest)
+    {
+        if (!TryParseOptions(rest, new[] { "--project" }, out var opts, out var error))
+        {
+            Console.Error.WriteLine($"error: {error} Use: estimation [--project <name|id>]");
+            return 2;
+        }
+        var t = sessions.ComputeEstimationTrend(opts.GetValueOrDefault("--project"));
+
+        Console.WriteLine($"Estimation accuracy — {t.Scope}");
+        if (t.TimedCount == 0)
+        {
+            Console.WriteLine("  No timed sessions yet. Start one with a focus timer " +
+                              "(session start --minutes N) to track estimation accuracy.");
+            return 0;
+        }
+        Console.WriteLine($"  Timed sessions: {t.TimedCount}");
+        Console.WriteLine($"  Accuracy:       {t.AverageAccuracyPercent:0}% (average)");
+        Console.WriteLine($"  Bias:           {DescribeBias(t.Bias, t.AverageError)}");
+        if (t.Improving is bool improving)
+        {
+            var word = improving ? "improving" : t.RecentAccuracyPercent < t.EarlierAccuracyPercent ? "declining" : "steady";
+            Console.WriteLine($"  Trend:          {word} " +
+                              $"(recent {t.RecentAccuracyPercent:0}% vs earlier {t.EarlierAccuracyPercent:0}%)");
+        }
+        return 0;
+    }
+
+    private static string DescribeBias(EstimationBias bias, TimeSpan averageError) => bias switch
+    {
+        EstimationBias.UnderEstimates => $"under-estimates — sessions run ~{FormatDuration(averageError)} over plan",
+        EstimationBias.OverEstimates => $"over-estimates — sessions finish ~{FormatDuration(-averageError)} early",
+        _ => "well-calibrated (within ~10% of plan)",
+    };
+
     private static int Blockers(ProjectRegistry registry, WorkSessionService sessions, string[] rest)
     {
         if (!TryParseOptions(rest, new[] { "--project", "--min" }, out var opts, out var error))
@@ -570,6 +607,7 @@ public static class Program
         writer.WriteLine("  context-switcher session show <number> [--project <name|id>]");
         writer.WriteLine("  context-switcher insights [--project <name|id>]");
         writer.WriteLine("  context-switcher blockers [--project <name|id>] [--min <n>]");
+        writer.WriteLine("  context-switcher estimation [--project <name|id>]");
         writer.WriteLine("  context-switcher resume");
         writer.WriteLine("  context-switcher status");
         writer.WriteLine();

@@ -266,6 +266,75 @@ public sealed class WorkSessionService
             .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     /// <summary>
+    /// Computes estimation-accuracy trends over closed, timed sessions for a
+    /// scope (ADR-0017): mean accuracy, over/under bias, and a recent-vs-earlier
+    /// directional trend. Scope: one project (via the shared
+    /// <see cref="ProjectLookup"/>) or all projects (<c>null</c>). Pure over the
+    /// stored sessions; reads state, writes nothing.
+    /// </summary>
+    /// <exception cref="ValidationException">A blank project reference.</exception>
+    /// <exception cref="NotFoundException">A project reference that matches nothing.</exception>
+    public EstimationTrend ComputeEstimationTrend(string? projectNameOrId = null)
+    {
+        var state = _store.Load();
+        IEnumerable<WorkSession> query = state.Sessions.Where(s => !s.IsOpen && s.EstimationAccuracy is not null);
+
+        string scope = "all projects";
+        if (projectNameOrId is not null)
+        {
+            var project = ProjectLookup.Resolve(state, projectNameOrId);
+            query = query.Where(s => s.ProjectId == project.Id);
+            scope = project.Name;
+        }
+        // Oldest -> newest so the trend split is chronological.
+        var timed = query.OrderBy(s => s.StartedUtc).ToList();
+
+        if (timed.Count == 0)
+        {
+            return new EstimationTrend
+            {
+                Scope = scope,
+                TimedCount = 0,
+                AverageAccuracyPercent = 0,
+                AverageError = TimeSpan.Zero,
+                Bias = EstimationBias.WellCalibrated,
+            };
+        }
+
+        var averageAccuracy = timed.Average(s => s.EstimationAccuracy!.Value) * 100.0;
+        var averageErrorTicks = (long)timed.Average(s => s.Overrun!.Value.Ticks);
+        var averageError = TimeSpan.FromTicks(averageErrorTicks);
+        var averagePlannedTicks = timed.Average(s => s.PlannedDuration!.Value.Ticks);
+
+        // Within +/-10% of the average plan counts as well-calibrated.
+        var bias = Math.Abs(averageErrorTicks) <= 0.10 * averagePlannedTicks
+            ? EstimationBias.WellCalibrated
+            : averageErrorTicks > 0 ? EstimationBias.UnderEstimates : EstimationBias.OverEstimates;
+
+        double? recentPct = null, earlierPct = null;
+        bool? improving = null;
+        if (timed.Count >= 2)
+        {
+            var split = timed.Count / 2; // recent half takes the extra when odd
+            earlierPct = timed.Take(split).Average(s => s.EstimationAccuracy!.Value) * 100.0;
+            recentPct = timed.Skip(split).Average(s => s.EstimationAccuracy!.Value) * 100.0;
+            improving = recentPct > earlierPct;
+        }
+
+        return new EstimationTrend
+        {
+            Scope = scope,
+            TimedCount = timed.Count,
+            AverageAccuracyPercent = averageAccuracy,
+            AverageError = averageError,
+            Bias = bias,
+            RecentAccuracyPercent = recentPct,
+            EarlierAccuracyPercent = earlierPct,
+            Improving = improving,
+        };
+    }
+
+    /// <summary>
     /// Resume brief for the active project: the most recent completed session's
     /// reflection, or null when the project has no completed session yet.
     /// </summary>
