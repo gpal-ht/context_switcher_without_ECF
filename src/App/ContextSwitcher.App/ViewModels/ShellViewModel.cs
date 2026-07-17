@@ -39,6 +39,16 @@ public sealed class ShellViewModel : ObservableObject
     public ObservableCollection<SessionRow> History { get; } = new();
     public IReadOnlyList<SessionOutcome> Outcomes { get; } = Enum.GetValues<SessionOutcome>();
 
+    // The project whose history the list shows — defaults to the active project
+    // but can be any project, without changing the active project (ADR-0014).
+    private bool _suppressHistoryReload;
+    private Project? _selectedHistoryProject;
+    public Project? SelectedHistoryProject
+    {
+        get => _selectedHistoryProject;
+        set { if (Set(ref _selectedHistoryProject, value) && !_suppressHistoryReload) { RebuildHistory(); } }
+    }
+
     private SessionRow? _selectedHistoryRow;
     public SessionRow? SelectedHistoryRow
     {
@@ -279,6 +289,17 @@ public sealed class ShellViewModel : ObservableObject
               + (OpenSession.Objective.Length > 0 ? $" — {OpenSession.Objective}" : "");
 
         ResumeBriefText = BuildResumeBrief();
+
+        // Choose which project's history to show: keep the current choice if it
+        // still exists, otherwise default to the active project (ADR-0014).
+        // Suppress the setter's reload — RebuildHistory runs once, below.
+        _suppressHistoryReload = true;
+        var desiredHistoryId = SelectedHistoryProject?.Id ?? ActiveProject?.Id;
+        SelectedHistoryProject = desiredHistoryId is Guid hid
+            ? Projects.FirstOrDefault(p => p.Id == hid)
+              ?? (ActiveProject is not null ? Projects.FirstOrDefault(p => p.Id == ActiveProject.Id) : null)
+            : null;
+        _suppressHistoryReload = false;
         RebuildHistory();
 
         // Restore selection and refresh command availability.
@@ -326,11 +347,11 @@ public sealed class ShellViewModel : ObservableObject
     {
         var previouslySelected = SelectedHistoryRow?.Session.Id;
         History.Clear();
-        if (ActiveProject is not null)
+        if (SelectedHistoryProject is Project historyProject)
         {
             try
             {
-                foreach (var s in _sessions.ListSessionsForActiveProject())
+                foreach (var s in _sessions.ListSessions(historyProject.Id.ToString()))
                 {
                     var when = s.StartedUtc.ToLocalTime().ToString("g");
                     var objective = s.Objective.Length > 0 ? $" ({s.Objective})" : "";

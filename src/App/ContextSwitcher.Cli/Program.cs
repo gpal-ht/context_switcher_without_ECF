@@ -76,10 +76,10 @@ public static class Program
                 return EndSession(sessions, rest);
             case ["session", "extend", .. var rest]:
                 return ExtendSession(sessions, rest);
-            case ["session", "list"]:
-                return ListSessions(registry, sessions);
-            case ["session", "show", var indexText]:
-                return ShowSession(registry, sessions, indexText);
+            case ["session", "list", .. var rest]:
+                return ListSessions(registry, sessions, rest);
+            case ["session", "show", var indexText, .. var rest]:
+                return ShowSession(registry, sessions, indexText, rest);
             case ["resume"]:
                 return Resume(registry, sessions);
             case ["status"]:
@@ -196,21 +196,24 @@ public static class Program
         return 0;
     }
 
-    private static int ListSessions(ProjectRegistry registry, WorkSessionService sessions)
+    private static int ListSessions(ProjectRegistry registry, WorkSessionService sessions, string[] rest)
     {
-        var active = registry.GetActiveProject();
-        if (active is null)
+        if (!TryParseOptions(rest, new[] { "--project" }, out var opts, out var error))
+        {
+            Console.Error.WriteLine($"error: {error} Use: session list [--project <name|id>]");
+            return 2;
+        }
+        if (!TryResolveHistory(registry, sessions, opts, out var project, out var history))
         {
             Console.WriteLine("No active project. Select one with: project switch <name>");
             return 0;
         }
-        var history = sessions.ListSessionsForActiveProject();
         if (history.Count == 0)
         {
-            Console.WriteLine($"No work sessions yet for '{active.Name}'. Start one with: session start");
+            Console.WriteLine($"No work sessions yet for '{project.Name}'. Start one with: session start");
             return 0;
         }
-        Console.WriteLine($"Work sessions for '{active.Name}' (most recent first):");
+        Console.WriteLine($"Work sessions for '{project.Name}' (most recent first):");
         for (var i = 0; i < history.Count; i++)
         {
             var session = history[i];
@@ -229,29 +232,63 @@ public static class Program
             }
         }
         Console.WriteLine();
-        Console.WriteLine("See full detail with: session show <number>");
+        Console.WriteLine(opts.ContainsKey("--project")
+            ? $"See full detail with: session show <number> --project \"{project.Name}\""
+            : "See full detail with: session show <number>");
         return 0;
     }
 
-    private static int ShowSession(ProjectRegistry registry, WorkSessionService sessions, string indexText)
+    /// <summary>
+    /// Resolves which project's history to show: the --project target (any
+    /// project, ADR-0014) or the active project. Returns false only when no
+    /// --project was given and there is no active project; NotFound/blank
+    /// --project references bubble up to Main.
+    /// </summary>
+    private static bool TryResolveHistory(
+        ProjectRegistry registry, WorkSessionService sessions,
+        Dictionary<string, string> opts,
+        out Project project, out IReadOnlyList<WorkSession> history)
     {
+        if (opts.TryGetValue("--project", out var reference))
+        {
+            project = registry.GetProject(reference);
+            history = sessions.ListSessions(reference);
+            return true;
+        }
         var active = registry.GetActiveProject();
         if (active is null)
+        {
+            project = null!;
+            history = Array.Empty<WorkSession>();
+            return false;
+        }
+        project = active;
+        history = sessions.ListSessionsForActiveProject();
+        return true;
+    }
+
+    private static int ShowSession(ProjectRegistry registry, WorkSessionService sessions, string indexText, string[] rest)
+    {
+        if (!TryParseOptions(rest, new[] { "--project" }, out var opts, out var error))
+        {
+            Console.Error.WriteLine($"error: {error} Use: session show <number> [--project <name|id>]");
+            return 2;
+        }
+        if (!TryResolveHistory(registry, sessions, opts, out var project, out var history))
         {
             Console.Error.WriteLine("error: no active project. Select one with: project switch <name>");
             return 2;
         }
-        var history = sessions.ListSessionsForActiveProject();
         if (!int.TryParse(indexText, out var index) || index < 1 || index > history.Count)
         {
             Console.Error.WriteLine(history.Count == 0
-                ? $"error: '{active.Name}' has no sessions yet."
+                ? $"error: '{project.Name}' has no sessions yet."
                 : $"error: session number must be between 1 and {history.Count} (see: session list).");
             return 2;
         }
 
         var s = history[index - 1];
-        Console.WriteLine($"Session {index} of {history.Count} — project '{active.Name}'");
+        Console.WriteLine($"Session {index} of {history.Count} — project '{project.Name}'");
         if (s.Objective.Length > 0) Console.WriteLine($"  Objective:  {s.Objective}");
         Console.WriteLine($"  Started:    {s.StartedUtc:u}");
         if (s.IsOpen)
@@ -458,8 +495,8 @@ public static class Program
         writer.WriteLine("  context-switcher session end --outcome <outcome> " +
                          "[--completed <t>] [--unfinished <t>] [--blockers <t>] [--notes <t>] [--next <t>]");
         writer.WriteLine("  context-switcher session extend --minutes <n>");
-        writer.WriteLine("  context-switcher session list");
-        writer.WriteLine("  context-switcher session show <number>");
+        writer.WriteLine("  context-switcher session list [--project <name|id>]");
+        writer.WriteLine("  context-switcher session show <number> [--project <name|id>]");
         writer.WriteLine("  context-switcher resume");
         writer.WriteLine("  context-switcher status");
         writer.WriteLine();
