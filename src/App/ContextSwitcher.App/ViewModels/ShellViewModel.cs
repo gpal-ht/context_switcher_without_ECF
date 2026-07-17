@@ -36,8 +36,18 @@ public sealed class ShellViewModel : ObservableObject
 
     // ---- Observable collections -------------------------------------------
     public ObservableCollection<Project> Projects { get; } = new();
-    public ObservableCollection<string> History { get; } = new();
+    public ObservableCollection<SessionRow> History { get; } = new();
     public IReadOnlyList<SessionOutcome> Outcomes { get; } = Enum.GetValues<SessionOutcome>();
+
+    private SessionRow? _selectedHistoryRow;
+    public SessionRow? SelectedHistoryRow
+    {
+        get => _selectedHistoryRow;
+        set { if (Set(ref _selectedHistoryRow, value)) { SelectedSessionDetail = BuildDetail(value?.Session); } }
+    }
+
+    private string _selectedSessionDetail = "Select a session to see its details.";
+    public string SelectedSessionDetail { get => _selectedSessionDetail; private set => Set(ref _selectedSessionDetail, value); }
 
     // ---- Commands ----------------------------------------------------------
     public RelayCommand AddProjectCommand { get; }
@@ -314,26 +324,70 @@ public sealed class ShellViewModel : ObservableObject
 
     private void RebuildHistory()
     {
+        var previouslySelected = SelectedHistoryRow?.Session.Id;
         History.Clear();
-        if (ActiveProject is null)
+        if (ActiveProject is not null)
         {
-            return;
-        }
-        try
-        {
-            foreach (var s in _sessions.ListSessionsForActiveProject())
+            try
             {
-                var when = s.StartedUtc.ToLocalTime().ToString("g");
-                History.Add(s.IsOpen
-                    ? $"{when} — in progress" + (s.Objective.Length > 0 ? $" ({s.Objective})" : "")
-                    : $"{when} — {Format(s.WrapUp!.Outcome)}" + (s.Objective.Length > 0 ? $" ({s.Objective})" : ""));
+                foreach (var s in _sessions.ListSessionsForActiveProject())
+                {
+                    var when = s.StartedUtc.ToLocalTime().ToString("g");
+                    var objective = s.Objective.Length > 0 ? $" ({s.Objective})" : "";
+                    var summary = s.IsOpen
+                        ? $"{when} — in progress{objective}"
+                        : $"{when} — {Format(s.WrapUp!.Outcome)}, {FormatClock(s.Duration ?? TimeSpan.Zero)}{objective}";
+                    History.Add(new SessionRow { Session = s, Summary = summary });
+                }
+            }
+            catch (WorkEngineException)
+            {
+                // No active project between refreshes; leave history empty.
             }
         }
-        catch (WorkEngineException)
-        {
-            // No active project between refreshes; leave history empty.
-        }
+
+        // Preserve the selection across a refresh when the same session is still present.
+        SelectedHistoryRow = previouslySelected is Guid id
+            ? History.FirstOrDefault(r => r.Session.Id == id)
+            : null;
     }
+
+    private string BuildDetail(WorkSession? s)
+    {
+        if (s is null)
+        {
+            return "Select a session to see its details.";
+        }
+        var lines = new List<string>();
+        if (s.Objective.Length > 0) lines.Add($"Objective: {s.Objective}");
+        lines.Add($"Started: {s.StartedUtc.ToLocalTime():g}");
+        if (s.IsOpen)
+        {
+            lines.Add("Status: in progress");
+            return string.Join(Environment.NewLine, lines);
+        }
+        lines.Add($"Ended: {s.EndedUtc!.Value.ToLocalTime():g}");
+        lines.Add($"Duration: {FormatClock(s.Duration ?? TimeSpan.Zero)}");
+        if (s.PlannedDuration is TimeSpan planned)
+        {
+            lines.Add($"Planned: {FormatClock(planned)} ({FormatOverrun(s.Overrun)})");
+        }
+        lines.Add($"Outcome: {Format(s.WrapUp!.Outcome)}");
+        if (s.WrapUp!.CompletedWork.Length > 0) lines.Add($"Completed: {s.WrapUp.CompletedWork}");
+        if (s.WrapUp!.UnfinishedWork.Length > 0) lines.Add($"Unfinished: {s.WrapUp.UnfinishedWork}");
+        if (s.WrapUp!.Blockers.Length > 0) lines.Add($"Blockers: {s.WrapUp.Blockers}");
+        if (s.WrapUp!.FutureSelfNotes.Length > 0) lines.Add($"Notes: {s.WrapUp.FutureSelfNotes}");
+        if (s.WrapUp!.NextAction.Length > 0) lines.Add($"Next action: {s.WrapUp.NextAction}");
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private static string FormatOverrun(TimeSpan? overrun) => overrun switch
+    {
+        null => "no plan",
+        { } o when o > TimeSpan.Zero => $"{FormatClock(o)} over",
+        { } o when o < TimeSpan.Zero => $"{FormatClock(-o)} early",
+        _ => "on time",
+    };
 
     private static string FormatClock(TimeSpan t)
     {

@@ -98,6 +98,17 @@ public sealed record WorkSession
         PlannedDuration is TimeSpan planned ? StartedUtc + planned : null;
 
     /// <summary>
+    /// For a CLOSED, timed session: how the actual duration compared to the
+    /// plan (positive = ran over, negative = finished early). Null when the
+    /// session is untimed or still open. Derived, not persisted (ADR-0013).
+    /// </summary>
+    [JsonIgnore]
+    public TimeSpan? Overrun =>
+        Duration is TimeSpan actual && PlannedDuration is TimeSpan planned
+            ? actual - planned
+            : null;
+
+    /// <summary>
     /// Time left on the focus timer at <paramref name="now"/> (may be negative
     /// once elapsed), or null when the session is untimed or already ended.
     /// </summary>
