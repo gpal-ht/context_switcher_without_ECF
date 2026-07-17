@@ -50,9 +50,28 @@
             <TextBlock Text="{Binding ActiveProjectText}" Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap" />
             <TextBlock Text="{Binding SessionStatusText}" TextWrapping="Wrap" Opacity="0.8" />
 
+            <!-- Live focus-timer countdown (ADR-0012); empty when the session is untimed -->
+            <TextBlock Text="{Binding CountdownText}"
+                       Style="{StaticResource BodyStrongTextBlockStyle}" />
+
+            <!-- Non-blocking elapsed nudge with a safe escape (InfoBar close = postpone) -->
+            <InfoBar IsOpen="{Binding ElapsedPromptOpen, Mode=TwoWay}"
+                     Severity="Warning" IsClosable="True"
+                     Title="Focus time is up"
+                     Message="Wrap up and switch, or extend your focus timer.">
+                <InfoBar.Content>
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+                        <Button Content="Wrap up now" Command="{Binding WrapUpNowCommand}" />
+                        <Button Content="Extend 5 min" Command="{Binding ExtendCommand}" />
+                    </StackPanel>
+                </InfoBar.Content>
+            </InfoBar>
+
             <StackPanel Orientation="Horizontal" Spacing="8">
-                <TextBox PlaceholderText="Objective (optional)" Width="240"
+                <TextBox PlaceholderText="Objective (optional)" Width="200"
                          Text="{Binding SessionObjective, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBox PlaceholderText="Minutes" Width="80"
+                         Text="{Binding SessionMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                 <Button Content="Start session" Command="{Binding StartSessionCommand}" />
             </StackPanel>
 

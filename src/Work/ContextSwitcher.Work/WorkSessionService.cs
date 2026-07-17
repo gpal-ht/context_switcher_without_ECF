@@ -25,10 +25,16 @@ public sealed class WorkSessionService
     }
 
     /// <summary>Starts a session on the active project.</summary>
-    /// <exception cref="ValidationException">No active project, or a session is already open.</exception>
-    public WorkSession StartSession(string? objective = null)
+    /// <param name="plannedDuration">
+    /// Optional focus-timer duration (ADR-0012). Null = untimed.
+    /// </param>
+    /// <exception cref="ValidationException">
+    /// No active project, a session is already open, or an invalid duration.
+    /// </exception>
+    public WorkSession StartSession(string? objective = null, TimeSpan? plannedDuration = null)
     {
         var normalizedObjective = WorkSession.NormalizeObjective(objective);
+        var normalizedPlanned = WorkSession.NormalizePlannedDuration(plannedDuration);
 
         var state = _store.Load();
         if (FindOpenSession(state) is WorkSession open)
@@ -52,10 +58,39 @@ public sealed class WorkSessionService
             StartedUtc = _clock(),
             EndedUtc = null,
             WrapUp = null,
+            PlannedDuration = normalizedPlanned,
         };
         state.Sessions.Add(session);
         _store.Save(state);
         return session;
+    }
+
+    /// <summary>
+    /// Extends ("snoozes") the open session's focus timer so its deadline
+    /// becomes now + <paramref name="by"/> — giving a fresh window even if the
+    /// timer already elapsed (ADR-0012).
+    /// </summary>
+    /// <exception cref="ValidationException">No open session, or a non-positive extension.</exception>
+    public WorkSession ExtendActiveSession(TimeSpan by)
+    {
+        if (by <= TimeSpan.Zero)
+        {
+            throw new ValidationException("The extension must be greater than zero.");
+        }
+        var state = _store.Load();
+        var index = state.Sessions.FindIndex(s => s.IsOpen);
+        if (index < 0)
+        {
+            throw new ValidationException("There is no work session in progress to extend.");
+        }
+        var open = state.Sessions[index];
+        var elapsedSoFar = _clock() - open.StartedUtc;
+        var newPlanned = WorkSession.NormalizePlannedDuration(
+            (elapsedSoFar > TimeSpan.Zero ? elapsedSoFar : TimeSpan.Zero) + by);
+        var extended = open with { PlannedDuration = newPlanned };
+        state.Sessions[index] = extended;
+        _store.Save(state);
+        return extended;
     }
 
     /// <summary>Ends the open session with a required outcome and optional wrap-up.</summary>
