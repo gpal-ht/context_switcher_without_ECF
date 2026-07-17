@@ -44,6 +44,41 @@ public sealed class JsonFileWorkspaceStoreTests : IDisposable
     }
 
     [Test]
+    public void Sessions_round_trip_through_disk()
+    {
+        var store = NewStore();
+        var registry = new ProjectRegistry(store);
+        registry.CreateProject("Alpha");
+        var svc = new WorkSessionService(store);
+        svc.StartSession("design");
+        svc.EndSession(SessionOutcome.PartiallyCompleted,
+            unfinishedWork: "the UI", nextAction: "write tests");
+
+        var reloaded = new WorkSessionService(NewStore());
+        var history = reloaded.ListSessionsForActiveProject();
+        Check.Equal(1, history.Count, "session persisted");
+        Check.Equal("design", history[0].Objective, "objective persisted");
+        var brief = reloaded.GetResumeBriefForActiveProject()!;
+        Check.Equal(SessionOutcome.PartiallyCompleted, brief.Outcome, "outcome persisted");
+        Check.Equal("write tests", brief.NextAction, "wrap-up field persisted");
+    }
+
+    [Test]
+    public void A_pre_sessions_0_1_0_file_still_loads_with_no_sessions()
+    {
+        // Backward compatibility (ADR-0009): a file written by the registry-only
+        // build has no `sessions` key. It must load, defaulting to empty.
+        var store = NewStore();
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(store.FilePath,
+            """{ "schema_version": "0.1.0", "active_project_id": null, "projects": [] }""");
+
+        var state = store.Load();
+        Check.Equal(0, state.Sessions.Count, "missing sessions defaults to empty");
+        Check.Equal("0.1.0", state.SchemaVersion, "schema version unchanged by the additive field");
+    }
+
+    [Test]
     public void Save_is_atomic_and_leaves_no_temp_files()
     {
         var store = NewStore();
