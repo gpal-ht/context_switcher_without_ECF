@@ -20,7 +20,20 @@
       "Bash(dotnet build *)",
       "Bash(dotnet run *)",
       "Bash(dotnet test *)",
-      "Bash(dotnet format *)"
+      "Bash(dotnet format *)",
+
+      "Bash(dotnet restore *)",
+      "Bash(dotnet msbuild *)",
+      "Bash(dotnet nuget *)",
+      "Bash(nuget restore *)"
     ]
+  },
+  "sandbox": {
+    "network": {
+      "allowedDomains": [
+        "*.nuget.org",
+        "*.azureedge.net"
+      ]
+    }
   }
 }

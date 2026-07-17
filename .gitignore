@@ -46,3 +46,6 @@ __pycache__/
 
 runtime/
 generated/
+
+# Claude Code — machine-specific local overrides (e.g. Visual Studio MSBuild path)
+.claude/settings.local.json
