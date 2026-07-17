@@ -86,6 +86,8 @@ public static class Program
                 return Blockers(registry, sessions, rest);
             case ["estimation", .. var rest]:
                 return Estimation(sessions, rest);
+            case ["recommend", .. var rest]:
+                return Recommend(sessions, rest);
             case ["resume"]:
                 return Resume(registry, sessions);
             case ["status"]:
@@ -361,6 +363,32 @@ public static class Program
         return 0;
     }
 
+    private static int Recommend(WorkSessionService sessions, string[] rest)
+    {
+        if (!TryParseOptions(rest, new[] { "--project" }, out var opts, out var error))
+        {
+            Console.Error.WriteLine($"error: {error} Use: recommend [--project <name|id>]");
+            return 2;
+        }
+        var rec = sessions.RecommendPlanning(opts.GetValueOrDefault("--project"));
+
+        Console.WriteLine($"For your next session on '{rec.Scope}':");
+        Console.WriteLine(rec.SuggestedFocus is TimeSpan focus
+            ? $"  Suggested focus: {FormatDuration(focus)}  ({rec.SuggestedFocusReason})"
+            : $"  Suggested focus: — ({rec.SuggestedFocusReason})");
+        if (!string.IsNullOrEmpty(rec.PendingNextAction))
+        {
+            Console.WriteLine($"  Pick up where you left off: {rec.PendingNextAction}");
+        }
+        if (rec.TopBlocker is RecurringBlocker blocker)
+        {
+            Console.WriteLine($"  Watch out for: \"{blocker.Text}\" (has blocked you {blocker.Count}x)");
+        }
+        Console.WriteLine();
+        Console.WriteLine("  (Suggestions only — you decide. Nothing is applied automatically.)");
+        return 0;
+    }
+
     private static int Estimation(WorkSessionService sessions, string[] rest)
     {
         if (!TryParseOptions(rest, new[] { "--project" }, out var opts, out var error))
@@ -608,6 +636,7 @@ public static class Program
         writer.WriteLine("  context-switcher insights [--project <name|id>]");
         writer.WriteLine("  context-switcher blockers [--project <name|id>] [--min <n>]");
         writer.WriteLine("  context-switcher estimation [--project <name|id>]");
+        writer.WriteLine("  context-switcher recommend [--project <name|id>]");
         writer.WriteLine("  context-switcher resume");
         writer.WriteLine("  context-switcher status");
         writer.WriteLine();

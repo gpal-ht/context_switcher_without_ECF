@@ -68,6 +68,9 @@ public sealed class ShellViewModel : ObservableObject
     private string _estimationText = "";
     public string EstimationText { get => _estimationText; private set => Set(ref _estimationText, value); }
 
+    private string _recommendationText = "";
+    public string RecommendationText { get => _recommendationText; private set => Set(ref _recommendationText, value); }
+
     // ---- Commands ----------------------------------------------------------
     public RelayCommand AddProjectCommand { get; }
     public RelayCommand SwitchCommand { get; }
@@ -301,6 +304,7 @@ public sealed class ShellViewModel : ObservableObject
         InsightsText = BuildInsightsText();
         BlockersText = BuildBlockersText();
         EstimationText = BuildEstimationText();
+        RecommendationText = BuildRecommendationText();
 
         // Choose which project's history to show: keep the current choice if it
         // still exists, otherwise default to the active project (ADR-0014).
@@ -361,6 +365,39 @@ public sealed class ShellViewModel : ObservableObject
         }
         return string.Join(Environment.NewLine,
             recurring.Take(5).Select(b => $"{b.Count}× {b.Text}"));
+    }
+
+    private string BuildRecommendationText()
+    {
+        if (ActiveProject is null)
+        {
+            return "Select a project to see suggestions for your next session.";
+        }
+        PlanningRecommendation rec;
+        try
+        {
+            rec = _sessions.RecommendPlanning(ActiveProject.Id.ToString());
+        }
+        catch (WorkEngineException)
+        {
+            return "";
+        }
+        var lines = new List<string>
+        {
+            rec.SuggestedFocus is TimeSpan focus
+                ? $"Suggested focus: {FormatSpan(focus)} ({rec.SuggestedFocusReason})"
+                : $"Suggested focus: not enough history yet",
+        };
+        if (!string.IsNullOrEmpty(rec.PendingNextAction))
+        {
+            lines.Add($"Pick up where you left off: {rec.PendingNextAction}");
+        }
+        if (rec.TopBlocker is RecurringBlocker blocker)
+        {
+            lines.Add($"Watch out for: \"{blocker.Text}\" (blocked you {blocker.Count}×)");
+        }
+        lines.Add("Suggestions only — you decide.");
+        return string.Join(Environment.NewLine, lines);
     }
 
     private string BuildEstimationText()

@@ -260,6 +260,84 @@ public sealed class WorkSessionService
             .ToList();
     }
 
+    /// <summary>
+    /// A read-only, data-derived recommendation for planning the next session
+    /// (ADR-0018). Default scope is the ACTIVE project (planning is about the
+    /// next session); a reference targets that project. Composes a suggested
+    /// focus length (median of recent sessions), the pending next action, and
+    /// the top recurring blocker. Pure over the stored sessions; writes and
+    /// applies nothing.
+    /// </summary>
+    /// <exception cref="ValidationException">A blank reference, or no active project when defaulting.</exception>
+    /// <exception cref="NotFoundException">A reference that matches nothing.</exception>
+    public PlanningRecommendation RecommendPlanning(string? projectNameOrId = null)
+    {
+        var state = _store.Load();
+        Project project;
+        if (projectNameOrId is not null)
+        {
+            project = ProjectLookup.Resolve(state, projectNameOrId);
+        }
+        else if (state.ActiveProjectId is Guid activeId
+                 && state.Projects.FirstOrDefault(p => p.Id == activeId) is Project active)
+        {
+            project = active;
+        }
+        else
+        {
+            throw new ValidationException("There is no active project to plan for. Select one first.");
+        }
+
+        var closed = state.Sessions
+            .Where(s => s.ProjectId == project.Id && !s.IsOpen)
+            .OrderByDescending(s => s.StartedUtc)
+            .ToList();
+        var recent = closed.Take(5).ToList();
+
+        TimeSpan? suggested = null;
+        string reason;
+        if (recent.Count < 2)
+        {
+            reason = "Not enough history yet — pick a focus length you are comfortable with.";
+        }
+        else
+        {
+            var median = Median(recent.Select(s => s.Duration ?? TimeSpan.Zero));
+            var minutes = Math.Max(5, Math.Round(median.TotalMinutes / 5.0) * 5);
+            suggested = TimeSpan.FromMinutes(minutes);
+            reason = $"Based on your {recent.Count} most recent sessions.";
+        }
+
+        var pending = closed
+            .Select(s => s.WrapUp?.NextAction)
+            .FirstOrDefault(a => !string.IsNullOrWhiteSpace(a));
+
+        var blockers = DetectRecurringBlockers(project.Id.ToString());
+        var topBlocker = blockers.Count > 0 ? blockers[0] : null;
+
+        return new PlanningRecommendation
+        {
+            Scope = project.Name,
+            SuggestedFocus = suggested,
+            SuggestedFocusReason = reason,
+            PendingNextAction = pending,
+            TopBlocker = topBlocker,
+        };
+    }
+
+    private static TimeSpan Median(IEnumerable<TimeSpan> values)
+    {
+        var sorted = values.OrderBy(v => v).ToList();
+        var n = sorted.Count;
+        if (n == 0)
+        {
+            return TimeSpan.Zero;
+        }
+        return n % 2 == 1
+            ? sorted[n / 2]
+            : TimeSpan.FromTicks((sorted[n / 2 - 1].Ticks + sorted[n / 2].Ticks) / 2);
+    }
+
     /// <summary>Grouping key for a blocker: lowercased, whitespace-collapsed.</summary>
     private static string NormalizeBlocker(string text) =>
         string.Join(' ', text.ToLowerInvariant()
