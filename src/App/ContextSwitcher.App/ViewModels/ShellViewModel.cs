@@ -24,10 +24,15 @@ public sealed class ShellViewModel : ObservableObject
         ArchiveCommand = new RelayCommand(() => Run(ArchiveSelected), () => SelectedProject is not null);
         StartSessionCommand = new RelayCommand(() => Run(StartSession), () => ActiveProject is not null && OpenSession is null);
         EndSessionCommand = new RelayCommand(() => Run(EndSession), () => OpenSession is not null);
+        ExtendCommand = new RelayCommand(() => Run(ExtendSession), () => OpenSession is not null);
+        WrapUpNowCommand = new RelayCommand(DismissElapsedPrompt, () => OpenSession is not null);
         RefreshCommand = new RelayCommand(Refresh);
 
         Refresh();
     }
+
+    /// <summary>Minutes to extend by when the user snoozes the elapsed prompt (ADR-0012).</summary>
+    private static readonly TimeSpan ExtendBy = TimeSpan.FromMinutes(5);
 
     // ---- Observable collections -------------------------------------------
     public ObservableCollection<Project> Projects { get; } = new();
@@ -40,6 +45,8 @@ public sealed class ShellViewModel : ObservableObject
     public RelayCommand ArchiveCommand { get; }
     public RelayCommand StartSessionCommand { get; }
     public RelayCommand EndSessionCommand { get; }
+    public RelayCommand ExtendCommand { get; }
+    public RelayCommand WrapUpNowCommand { get; }
     public RelayCommand RefreshCommand { get; }
 
     // ---- New-project inputs ------------------------------------------------
@@ -59,6 +66,9 @@ public sealed class ShellViewModel : ObservableObject
     // ---- Session inputs ----------------------------------------------------
     private string _sessionObjective = "";
     public string SessionObjective { get => _sessionObjective; set => Set(ref _sessionObjective, value); }
+
+    private string _sessionMinutes = "";
+    public string SessionMinutes { get => _sessionMinutes; set => Set(ref _sessionMinutes, value); }
 
     private SessionOutcome _selectedOutcome = SessionOutcome.Completed;
     public SessionOutcome SelectedOutcome { get => _selectedOutcome; set => Set(ref _selectedOutcome, value); }
@@ -94,6 +104,65 @@ public sealed class ShellViewModel : ObservableObject
     private string _statusMessage = "";
     public string StatusMessage { get => _statusMessage; private set => Set(ref _statusMessage, value); }
 
+    // ---- Focus timer (ADR-0012) -------------------------------------------
+    private bool _promptDismissed;
+
+    /// <summary>True while the open session carries a focus timer.</summary>
+    public bool TimerVisible => OpenSession?.PlannedDuration is not null;
+
+    private string _countdownText = "";
+    public string CountdownText { get => _countdownText; private set => Set(ref _countdownText, value); }
+
+    /// <summary>True when the open timed session has passed its deadline.</summary>
+    public bool IsTimerElapsed { get; private set; }
+
+    /// <summary>
+    /// Two-way bound to the elapsed InfoBar's IsOpen. The bar shows when the
+    /// timer has elapsed and the user has not dismissed it; closing it (X) sets
+    /// the dismiss flag so it does not immediately reopen (safe escape, ADR-0012).
+    /// </summary>
+    public bool ElapsedPromptOpen
+    {
+        get => OpenSession is not null && IsTimerElapsed && !_promptDismissed;
+        set { if (!value) { _promptDismissed = true; Raise(); } }
+    }
+
+    /// <summary>
+    /// Recomputes the countdown from the open session and the current time.
+    /// Called by the UI's one-second DispatcherTimer; does not touch the store.
+    /// </summary>
+    public void Tick()
+    {
+        var open = OpenSession;
+        if (open?.PlannedDuration is null)
+        {
+            if (CountdownText.Length > 0) CountdownText = "";
+            SetElapsed(false);
+            return;
+        }
+        var remaining = open.RemainingAt(DateTimeOffset.UtcNow) ?? TimeSpan.Zero;
+        if (remaining > TimeSpan.Zero)
+        {
+            CountdownText = $"Focus timer: {FormatClock(remaining)} left";
+            SetElapsed(false);
+        }
+        else
+        {
+            CountdownText = $"Focus time is up — {FormatClock(-remaining)} over";
+            SetElapsed(true);
+        }
+    }
+
+    private void SetElapsed(bool value)
+    {
+        if (IsTimerElapsed != value)
+        {
+            IsTimerElapsed = value;
+            Raise(nameof(IsTimerElapsed));
+        }
+        Raise(nameof(ElapsedPromptOpen));
+    }
+
     // ---- Command bodies ----------------------------------------------------
     private void AddProject()
     {
@@ -119,9 +188,35 @@ public sealed class ShellViewModel : ObservableObject
 
     private void StartSession()
     {
-        _sessions.StartSession(SessionObjective);
+        TimeSpan? planned = null;
+        var minutesText = SessionMinutes.Trim();
+        if (minutesText.Length > 0)
+        {
+            if (!double.TryParse(minutesText, out var minutes) || minutes <= 0)
+            {
+                throw new ValidationException("Focus minutes must be a positive number, or left blank.");
+            }
+            planned = TimeSpan.FromMinutes(minutes);
+        }
+        _sessions.StartSession(SessionObjective, planned);
         SessionObjective = "";
-        StatusMessage = "Work session started.";
+        SessionMinutes = "";
+        _promptDismissed = false;
+        StatusMessage = planned is null ? "Work session started." : "Focus session started.";
+    }
+
+    private void ExtendSession()
+    {
+        _sessions.ExtendActiveSession(ExtendBy);
+        _promptDismissed = false;
+        StatusMessage = $"Extended by {(int)ExtendBy.TotalMinutes} minutes.";
+    }
+
+    private void DismissElapsedPrompt()
+    {
+        _promptDismissed = true;
+        Raise(nameof(ElapsedPromptOpen));
+        StatusMessage = "Fill in the wrap-up on the right and press End session when ready.";
     }
 
     private void EndSession()
@@ -129,6 +224,7 @@ public sealed class ShellViewModel : ObservableObject
         var ended = _sessions.EndSession(
             SelectedOutcome, CompletedWork, UnfinishedWork, Blockers, FutureSelfNotes, NextAction);
         CompletedWork = UnfinishedWork = Blockers = FutureSelfNotes = NextAction = "";
+        _promptDismissed = false;
         StatusMessage = $"Session ended ({Format(ended.WrapUp!.Outcome)}).";
     }
 
@@ -181,8 +277,12 @@ public sealed class ShellViewModel : ObservableObject
             : null;
         StartSessionCommand.RaiseCanExecuteChanged();
         EndSessionCommand.RaiseCanExecuteChanged();
+        ExtendCommand.RaiseCanExecuteChanged();
+        WrapUpNowCommand.RaiseCanExecuteChanged();
         Raise(nameof(ActiveProject));
         Raise(nameof(OpenSession));
+        Raise(nameof(TimerVisible));
+        Tick(); // sync the countdown / elapsed prompt to the (possibly new) session
     }
 
     private string BuildResumeBrief()
@@ -233,6 +333,14 @@ public sealed class ShellViewModel : ObservableObject
         {
             // No active project between refreshes; leave history empty.
         }
+    }
+
+    private static string FormatClock(TimeSpan t)
+    {
+        if (t < TimeSpan.Zero) t = TimeSpan.Zero;
+        return t.TotalHours >= 1
+            ? $"{(int)t.TotalHours}h {t.Minutes:00}m"
+            : $"{t.Minutes:00}:{t.Seconds:00}";
     }
 
     private static string Format(SessionOutcome outcome)

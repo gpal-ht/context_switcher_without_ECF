@@ -74,6 +74,8 @@ public static class Program
                 return StartSession(registry, sessions, rest);
             case ["session", "end", .. var rest]:
                 return EndSession(sessions, rest);
+            case ["session", "extend", .. var rest]:
+                return ExtendSession(sessions, rest);
             case ["session", "list"]:
                 return ListSessions(registry, sessions);
             case ["resume"]:
@@ -128,16 +130,27 @@ public static class Program
 
     private static int StartSession(ProjectRegistry registry, WorkSessionService sessions, string[] rest)
     {
-        if (!TryParseOptions(rest, new[] { "--objective" }, out var opts, out var error))
+        if (!TryParseOptions(rest, new[] { "--objective", "--minutes" }, out var opts, out var error))
         {
-            Console.Error.WriteLine($"error: {error} Use: session start [--objective <text>]");
+            Console.Error.WriteLine($"error: {error} Use: session start [--objective <text>] [--minutes <n>]");
             return 2;
         }
-        var session = sessions.StartSession(opts.GetValueOrDefault("--objective"));
+        TimeSpan? planned = null;
+        if (opts.TryGetValue("--minutes", out var minutesText))
+        {
+            if (!double.TryParse(minutesText, out var minutes) || minutes <= 0)
+            {
+                Console.Error.WriteLine("error: --minutes must be a positive number.");
+                return 2;
+            }
+            planned = TimeSpan.FromMinutes(minutes);
+        }
+        var session = sessions.StartSession(opts.GetValueOrDefault("--objective"), planned);
         var project = registry.GetActiveProject();
         var onProject = project is null ? "" : $" on '{project.Name}'";
         var objective = session.Objective.Length > 0 ? $" — {session.Objective}" : "";
-        Console.WriteLine($"Started a work session{onProject}{objective}.");
+        var timer = session.PlannedDuration is TimeSpan d ? $" (focus timer: {FormatDuration(d)})" : "";
+        Console.WriteLine($"Started a work session{onProject}{objective}{timer}.");
         return 0;
     }
 
@@ -250,12 +263,39 @@ public static class Program
         {
             var objective = open.Objective.Length > 0 ? $" — {open.Objective}" : "";
             Console.WriteLine($"Session in progress since {open.StartedUtc:u}{objective}.");
+            var now = DateTimeOffset.UtcNow;
+            if (open.RemainingAt(now) is TimeSpan remaining)
+            {
+                Console.WriteLine(remaining > TimeSpan.Zero
+                    ? $"Focus timer: {FormatDuration(remaining)} left."
+                    : $"Focus time is up ({FormatDuration(-remaining)} over) — wrap up and switch, "
+                      + "or extend with: session extend --minutes <n>");
+            }
             Console.WriteLine("End it with: session end --outcome <outcome>");
         }
         else
         {
             Console.WriteLine("No session in progress. Start one with: session start");
         }
+        return 0;
+    }
+
+    private static int ExtendSession(WorkSessionService sessions, string[] rest)
+    {
+        if (!TryParseOptions(rest, new[] { "--minutes" }, out var opts, out var error)
+            || !opts.TryGetValue("--minutes", out var minutesText))
+        {
+            Console.Error.WriteLine($"error: {(error.Length > 0 ? error + " " : "")}Use: session extend --minutes <n>");
+            return 2;
+        }
+        if (!double.TryParse(minutesText, out var minutes) || minutes <= 0)
+        {
+            Console.Error.WriteLine("error: --minutes must be a positive number.");
+            return 2;
+        }
+        var extended = sessions.ExtendActiveSession(TimeSpan.FromMinutes(minutes));
+        var remaining = extended.RemainingAt(DateTimeOffset.UtcNow) ?? TimeSpan.Zero;
+        Console.WriteLine($"Extended the session — {FormatDuration(remaining)} left.");
         return 0;
     }
 
@@ -352,9 +392,10 @@ public static class Program
         writer.WriteLine("  context-switcher project list");
         writer.WriteLine("  context-switcher project switch <name|id>");
         writer.WriteLine("  context-switcher project archive <name|id>");
-        writer.WriteLine("  context-switcher session start [--objective <text>]");
+        writer.WriteLine("  context-switcher session start [--objective <text>] [--minutes <n>]");
         writer.WriteLine("  context-switcher session end --outcome <outcome> " +
                          "[--completed <t>] [--unfinished <t>] [--blockers <t>] [--notes <t>] [--next <t>]");
+        writer.WriteLine("  context-switcher session extend --minutes <n>");
         writer.WriteLine("  context-switcher session list");
         writer.WriteLine("  context-switcher resume");
         writer.WriteLine("  context-switcher status");
