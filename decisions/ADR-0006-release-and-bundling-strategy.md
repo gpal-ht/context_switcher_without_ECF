@@ -1,6 +1,9 @@
 # ADR-0006: Release and Bundling Strategy
 
-**Status:** Accepted
+**Status:** Superseded by [ADR-0010](ADR-0010-remove-ecf-integration.md)
+(ECF removed from this repository, 2026-07-17). Retained as history: this
+records the original ECF/EKB bundling and release policy. With ECF gone, the
+release tooling is app-only and no longer bundles any dependency.
 
 **Date:** 2026-07-13
 

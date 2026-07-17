@@ -106,14 +106,18 @@ The MVP should support:
 ## Implementation Status
 
 Implementation in progress (approved by the project owner, 2026-07-16;
-conventions per ADR-0008).
+conventions per ADR-0008; work-session lifecycle per ADR-0009).
 
 | MVP requirement | Status |
 | --- | --- |
 | A list of projects | **Implemented** — Work Engine project registry (`src/Work/ContextSwitcher.Work`) with create/list/archive, local JSON persistence, interim CLI harness |
 | An active project | **Implemented** — active-project selection with archived-project guard |
-| A current work session | Not started |
-| Manual context switch | Not started (project switching exists; the session wrap-up flow does not) |
-| Wrap-up form | Not started |
-| Next project selection | Partial — `project switch` exists; not yet wired to a wrap-up flow |
-| Session history | Not started |
+| A current work session | **Implemented** — `WorkSessionService` start/end on the active project; one open session at a time (`session start` / `session end` / `status`) |
+| Manual context switch | **Implemented (core loop)** — end (wrap up) → `project switch` → `resume` → start again; timer/auto-switch is a later slice |
+| Wrap-up form | **Implemented** — required outcome + optional completed/unfinished/blockers/future-self-notes/next-action (`session end`) |
+| Next project selection | **Implemented** — `project switch` followed by `resume` shows the target project's last wrap-up |
+| Session history | **Implemented** — `session list` for the active project, most recent first |
+
+Remaining for this feature: per-project history for non-active projects,
+timer-driven / automatic switching, and AI-assisted wrap-up drafts (MVP
+non-goals or later requirements).

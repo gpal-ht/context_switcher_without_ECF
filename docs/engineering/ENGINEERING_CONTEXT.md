@@ -7,9 +7,10 @@ Context Switcher
 ## Current Phase
 
 MVP implementation. Foundation and architecture design are established;
-product implementation was approved by the project owner on 2026-07-16 and
-began with the Work Engine project registry (ADR-0008). Standalone mode is
-the required baseline; ECF remains an optional backend (ADR-0007).
+product implementation began with the Work Engine project registry
+(ADR-0008) and work-session lifecycle (ADR-0009). Context Switcher is a
+standalone .NET application with no external framework dependency; the
+former optional ECF integration was removed (ADR-0010).
 
 ## Product Mission
 

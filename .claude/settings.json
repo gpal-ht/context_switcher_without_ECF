@@ -17,9 +17,10 @@
       "Bash(git worktree *)",
       "Bash(mkdir -p *)",
 
-      "Read(//c/Dev/platform/**)",
-      "Read(//c/Dev/ecf/**)",
-      "Read(//c/Dev/engineering_kb/**)"
+      "Bash(dotnet build *)",
+      "Bash(dotnet run *)",
+      "Bash(dotnet test *)",
+      "Bash(dotnet format *)"
     ]
   }
 }

@@ -1,6 +1,9 @@
 # ADR-0007: Optional ECF Integration Behind an Engineering-Backend Boundary
 
-**Status:** Accepted
+**Status:** Superseded by [ADR-0010](ADR-0010-remove-ecf-integration.md)
+(ECF removed from this repository, 2026-07-17). Retained as history: this
+records why ECF was made an optional integration behind a stable boundary.
+That boundary is what let ADR-0010 remove ECF as a clean extraction.
 
 **Date:** 2026-07-16
 
