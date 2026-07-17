@@ -19,8 +19,9 @@
         <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Text="Context Switcher"
                    Style="{StaticResource TitleTextBlockStyle}" />
 
-        <!-- Left: projects -->
-        <StackPanel Grid.Row="1" Grid.Column="0" Spacing="8">
+        <!-- Left: projects + insights -->
+        <ScrollViewer Grid.Row="1" Grid.Column="0" VerticalScrollBarVisibility="Auto" Padding="0,0,8,0">
+        <StackPanel Spacing="8">
             <TextBlock Text="Projects" Style="{StaticResource SubtitleTextBlockStyle}" />
             <ListView ItemsSource="{Binding Projects}"
                       SelectedItem="{Binding SelectedProject, Mode=TwoWay}"
@@ -49,10 +50,17 @@
             <Border Padding="8" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="4">
                 <TextBlock Text="{Binding InsightsText}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
             </Border>
+
+            <TextBlock Text="Recurring blockers (all projects)" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,12,0,0" />
+            <Border Padding="8" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="4">
+                <TextBlock Text="{Binding BlockersText}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+            </Border>
         </StackPanel>
+        </ScrollViewer>
 
         <!-- Right: active project + session -->
-        <StackPanel Grid.Row="1" Grid.Column="1" Spacing="8">
+        <ScrollViewer Grid.Row="1" Grid.Column="1" VerticalScrollBarVisibility="Auto" Padding="0,0,8,0">
+        <StackPanel Spacing="8">
             <TextBlock Text="{Binding ActiveProjectText}" Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap" />
             <TextBlock Text="{Binding SessionStatusText}" TextWrapping="Wrap" Opacity="0.8" />
 
@@ -116,6 +124,7 @@
                 <TextBlock Text="{Binding SelectedSessionDetail}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
             </Border>
         </StackPanel>
+        </ScrollViewer>
 
         <!-- Bottom: status line -->
         <Border Grid.Row="2" Grid.ColumnSpan="2" Padding="8"
