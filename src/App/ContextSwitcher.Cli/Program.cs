@@ -82,6 +82,8 @@ public static class Program
                 return ShowSession(registry, sessions, indexText, rest);
             case ["insights", .. var rest]:
                 return Insights(sessions, rest);
+            case ["blockers", .. var rest]:
+                return Blockers(registry, sessions, rest);
             case ["resume"]:
                 return Resume(registry, sessions);
             case ["status"]:
@@ -357,6 +359,36 @@ public static class Program
         return 0;
     }
 
+    private static int Blockers(ProjectRegistry registry, WorkSessionService sessions, string[] rest)
+    {
+        if (!TryParseOptions(rest, new[] { "--project", "--min" }, out var opts, out var error))
+        {
+            Console.Error.WriteLine($"error: {error} Use: blockers [--project <name|id>] [--min <n>]");
+            return 2;
+        }
+        var min = 2;
+        if (opts.TryGetValue("--min", out var minText) && (!int.TryParse(minText, out min) || min < 1))
+        {
+            Console.Error.WriteLine("error: --min must be a positive integer.");
+            return 2;
+        }
+        var reference = opts.GetValueOrDefault("--project");
+        var recurring = sessions.DetectRecurringBlockers(reference, min);
+        var scope = reference is null ? "all projects" : registry.GetProject(reference).Name;
+
+        Console.WriteLine($"Recurring blockers — {scope} (seen {min}+ times)");
+        if (recurring.Count == 0)
+        {
+            Console.WriteLine("  None detected. Blockers you record repeatedly will surface here.");
+            return 0;
+        }
+        foreach (var b in recurring)
+        {
+            Console.WriteLine($"  {b.Count}x  {b.Text}  (last seen {b.LastSeenUtc:u})");
+        }
+        return 0;
+    }
+
     private static int Resume(ProjectRegistry registry, WorkSessionService sessions)
     {
         var active = registry.GetActiveProject();
@@ -537,6 +569,7 @@ public static class Program
         writer.WriteLine("  context-switcher session list [--project <name|id>]");
         writer.WriteLine("  context-switcher session show <number> [--project <name|id>]");
         writer.WriteLine("  context-switcher insights [--project <name|id>]");
+        writer.WriteLine("  context-switcher blockers [--project <name|id>] [--min <n>]");
         writer.WriteLine("  context-switcher resume");
         writer.WriteLine("  context-switcher status");
         writer.WriteLine();

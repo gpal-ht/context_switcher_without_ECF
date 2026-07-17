@@ -218,6 +218,54 @@ public sealed class WorkSessionService
     }
 
     /// <summary>
+    /// Detects blockers recorded across multiple closed sessions (ADR-0016).
+    /// Groups the wrap-up Blockers field case- and whitespace-insensitively and
+    /// keeps those seen in <paramref name="minOccurrences"/>+ sessions, most
+    /// frequent first (ties broken by most recent). Scope: one project (via the
+    /// shared <see cref="ProjectLookup"/>) or all projects (<c>null</c>). Pure
+    /// over the stored sessions; reads state, writes nothing.
+    /// </summary>
+    /// <exception cref="ValidationException">A blank project reference.</exception>
+    /// <exception cref="NotFoundException">A project reference that matches nothing.</exception>
+    public IReadOnlyList<RecurringBlocker> DetectRecurringBlockers(
+        string? projectNameOrId = null, int minOccurrences = 2)
+    {
+        if (minOccurrences < 1)
+        {
+            minOccurrences = 1;
+        }
+        var state = _store.Load();
+        IEnumerable<WorkSession> query = state.Sessions.Where(s => !s.IsOpen && s.WrapUp is not null);
+        if (projectNameOrId is not null)
+        {
+            var project = ProjectLookup.Resolve(state, projectNameOrId);
+            query = query.Where(s => s.ProjectId == project.Id);
+        }
+
+        var entries = query
+            .Select(s => (Text: s.WrapUp!.Blockers.Trim(), When: s.EndedUtc ?? s.StartedUtc))
+            .Where(e => e.Text.Length > 0)
+            .ToList();
+
+        return entries
+            .GroupBy(e => NormalizeBlocker(e.Text))
+            .Where(g => g.Count() >= minOccurrences)
+            .Select(g =>
+            {
+                var latest = g.OrderByDescending(e => e.When).First();
+                return new RecurringBlocker { Text = latest.Text, Count = g.Count(), LastSeenUtc = latest.When };
+            })
+            .OrderByDescending(b => b.Count)
+            .ThenByDescending(b => b.LastSeenUtc)
+            .ToList();
+    }
+
+    /// <summary>Grouping key for a blocker: lowercased, whitespace-collapsed.</summary>
+    private static string NormalizeBlocker(string text) =>
+        string.Join(' ', text.ToLowerInvariant()
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+    /// <summary>
     /// Resume brief for the active project: the most recent completed session's
     /// reflection, or null when the project has no completed session yet.
     /// </summary>

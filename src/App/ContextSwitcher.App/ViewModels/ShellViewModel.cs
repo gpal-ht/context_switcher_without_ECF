@@ -62,6 +62,9 @@ public sealed class ShellViewModel : ObservableObject
     private string _insightsText = "";
     public string InsightsText { get => _insightsText; private set => Set(ref _insightsText, value); }
 
+    private string _blockersText = "";
+    public string BlockersText { get => _blockersText; private set => Set(ref _blockersText, value); }
+
     // ---- Commands ----------------------------------------------------------
     public RelayCommand AddProjectCommand { get; }
     public RelayCommand SwitchCommand { get; }
@@ -293,6 +296,7 @@ public sealed class ShellViewModel : ObservableObject
 
         ResumeBriefText = BuildResumeBrief();
         InsightsText = BuildInsightsText();
+        BlockersText = BuildBlockersText();
 
         // Choose which project's history to show: keep the current choice if it
         // still exists, otherwise default to the active project (ADR-0014).
@@ -342,6 +346,17 @@ public sealed class ShellViewModel : ObservableObject
         var trend = ins.TrendDirection > 0 ? "up from" : ins.TrendDirection < 0 ? "down from" : "same as";
         lines.Add($"This week: {FormatSpan(ins.RecentFocus)} ({trend} {FormatSpan(ins.PriorFocus)} previous week)");
         return string.Join(Environment.NewLine, lines);
+    }
+
+    private string BuildBlockersText()
+    {
+        var recurring = _sessions.DetectRecurringBlockers(); // all projects, default threshold (ADR-0016)
+        if (recurring.Count == 0)
+        {
+            return "None detected yet.";
+        }
+        return string.Join(Environment.NewLine,
+            recurring.Take(5).Select(b => $"{b.Count}× {b.Text}"));
     }
 
     private static string FormatSpan(TimeSpan d)
