@@ -44,6 +44,11 @@
             <TextBox PlaceholderText="Name" Text="{Binding NewProjectName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             <TextBox PlaceholderText="Description (optional)" Text="{Binding NewProjectDescription, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             <Button Content="Add project" Command="{Binding AddProjectCommand}" />
+
+            <TextBlock Text="Focus trends (all projects)" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,12,0,0" />
+            <Border Padding="8" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="4">
+                <TextBlock Text="{Binding InsightsText}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+            </Border>
         </StackPanel>
 
         <!-- Right: active project + session -->

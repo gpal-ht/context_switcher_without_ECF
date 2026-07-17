@@ -158,6 +158,66 @@ public sealed class WorkSessionService
             .ToList();
 
     /// <summary>
+    /// Computes focus-trends insights over closed sessions for a scope
+    /// (ADR-0015). <paramref name="projectNameOrId"/> null = all projects.
+    /// Pure over the stored sessions plus the injected clock (which drives the
+    /// week-over-week windows); reads state, writes nothing.
+    /// </summary>
+    /// <exception cref="ValidationException">A blank project reference.</exception>
+    /// <exception cref="NotFoundException">A project reference that matches nothing.</exception>
+    public FocusInsights ComputeInsights(string? projectNameOrId = null)
+    {
+        var state = _store.Load();
+        IEnumerable<WorkSession> query = state.Sessions.Where(s => !s.IsOpen);
+
+        string scope = "all projects";
+        if (projectNameOrId is not null)
+        {
+            var project = ProjectLookup.Resolve(state, projectNameOrId);
+            query = query.Where(s => s.ProjectId == project.Id);
+            scope = project.Name;
+        }
+        var closed = query.ToList();
+
+        var now = _clock();
+        var recentCut = now - TimeSpan.FromDays(7);
+        var priorCut = now - TimeSpan.FromDays(14);
+
+        var total = closed.Aggregate(TimeSpan.Zero, (acc, s) => acc + (s.Duration ?? TimeSpan.Zero));
+        var outcomeCounts = closed
+            .Where(s => s.WrapUp is not null)
+            .GroupBy(s => s.WrapUp!.Outcome)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var timed = closed.Where(s => s.Overrun is not null).ToList();
+        var overran = timed.Count(s => s.Overrun!.Value > TimeSpan.Zero);
+        TimeSpan? averageOverrun = timed.Count == 0
+            ? null
+            : TimeSpan.FromTicks((long)timed.Average(s => s.Overrun!.Value.Ticks));
+
+        var recent = closed
+            .Where(s => s.StartedUtc >= recentCut)
+            .Aggregate(TimeSpan.Zero, (acc, s) => acc + (s.Duration ?? TimeSpan.Zero));
+        var prior = closed
+            .Where(s => s.StartedUtc >= priorCut && s.StartedUtc < recentCut)
+            .Aggregate(TimeSpan.Zero, (acc, s) => acc + (s.Duration ?? TimeSpan.Zero));
+
+        return new FocusInsights
+        {
+            Scope = scope,
+            SessionCount = closed.Count,
+            TotalFocus = total,
+            AverageFocus = closed.Count == 0 ? null : TimeSpan.FromTicks(total.Ticks / closed.Count),
+            OutcomeCounts = outcomeCounts,
+            TimedCount = timed.Count,
+            OverranCount = overran,
+            AverageOverrun = averageOverrun,
+            RecentFocus = recent,
+            PriorFocus = prior,
+        };
+    }
+
+    /// <summary>
     /// Resume brief for the active project: the most recent completed session's
     /// reflection, or null when the project has no completed session yet.
     /// </summary>

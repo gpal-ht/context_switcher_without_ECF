@@ -59,6 +59,9 @@ public sealed class ShellViewModel : ObservableObject
     private string _selectedSessionDetail = "Select a session to see its details.";
     public string SelectedSessionDetail { get => _selectedSessionDetail; private set => Set(ref _selectedSessionDetail, value); }
 
+    private string _insightsText = "";
+    public string InsightsText { get => _insightsText; private set => Set(ref _insightsText, value); }
+
     // ---- Commands ----------------------------------------------------------
     public RelayCommand AddProjectCommand { get; }
     public RelayCommand SwitchCommand { get; }
@@ -289,6 +292,7 @@ public sealed class ShellViewModel : ObservableObject
               + (OpenSession.Objective.Length > 0 ? $" — {OpenSession.Objective}" : "");
 
         ResumeBriefText = BuildResumeBrief();
+        InsightsText = BuildInsightsText();
 
         // Choose which project's history to show: keep the current choice if it
         // still exists, otherwise default to the active project (ADR-0014).
@@ -315,6 +319,45 @@ public sealed class ShellViewModel : ObservableObject
         Raise(nameof(TimerVisible));
         Tick(); // sync the countdown / elapsed prompt to the (possibly new) session
     }
+
+    private string BuildInsightsText()
+    {
+        var ins = _sessions.ComputeInsights(); // all projects (ADR-0015)
+        if (ins.SessionCount == 0)
+        {
+            return "No completed sessions yet — wrap up a session to build focus trends.";
+        }
+        var lines = new List<string>
+        {
+            $"{ins.SessionCount} sessions · {FormatSpan(ins.TotalFocus)} total focus",
+        };
+        if (ins.AverageFocus is TimeSpan avg)
+        {
+            lines.Add($"Average {FormatSpan(avg)}/session · {ins.CompletionRate * 100:0}% completed");
+        }
+        if (ins.TimedCount > 0)
+        {
+            lines.Add($"Estimation: {ins.OverranCount}/{ins.TimedCount} ran over ({FormatSignedSpan(ins.AverageOverrun)})");
+        }
+        var trend = ins.TrendDirection > 0 ? "up from" : ins.TrendDirection < 0 ? "down from" : "same as";
+        lines.Add($"This week: {FormatSpan(ins.RecentFocus)} ({trend} {FormatSpan(ins.PriorFocus)} previous week)");
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private static string FormatSpan(TimeSpan d)
+    {
+        if (d < TimeSpan.Zero) d = TimeSpan.Zero;
+        return d.TotalHours >= 1 ? $"{(int)d.TotalHours}h {d.Minutes}m"
+             : d.TotalMinutes >= 1 ? $"{d.Minutes}m" : $"{d.Seconds}s";
+    }
+
+    private static string FormatSignedSpan(TimeSpan? span) => span switch
+    {
+        null => "no plans",
+        { } o when o > TimeSpan.Zero => $"avg {FormatSpan(o)} over plan",
+        { } o when o < TimeSpan.Zero => $"avg {FormatSpan(-o)} under plan",
+        _ => "on plan",
+    };
 
     private string BuildResumeBrief()
     {

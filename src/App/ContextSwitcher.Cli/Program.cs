@@ -80,6 +80,8 @@ public static class Program
                 return ListSessions(registry, sessions, rest);
             case ["session", "show", var indexText, .. var rest]:
                 return ShowSession(registry, sessions, indexText, rest);
+            case ["insights", .. var rest]:
+                return Insights(sessions, rest);
             case ["resume"]:
                 return Resume(registry, sessions);
             case ["status"]:
@@ -318,6 +320,43 @@ public static class Program
         return 0;
     }
 
+    private static int Insights(WorkSessionService sessions, string[] rest)
+    {
+        if (!TryParseOptions(rest, new[] { "--project" }, out var opts, out var error))
+        {
+            Console.Error.WriteLine($"error: {error} Use: insights [--project <name|id>]");
+            return 2;
+        }
+        var ins = sessions.ComputeInsights(opts.GetValueOrDefault("--project"));
+
+        Console.WriteLine($"Focus trends — {ins.Scope}");
+        if (ins.SessionCount == 0)
+        {
+            Console.WriteLine("  No completed sessions yet. Wrap up a session to build insights.");
+            return 0;
+        }
+        Console.WriteLine($"  Sessions:    {ins.SessionCount} completed");
+        Console.WriteLine($"  Total focus: {FormatDuration(ins.TotalFocus)}");
+        if (ins.AverageFocus is TimeSpan avg)
+        {
+            Console.WriteLine($"  Average:     {FormatDuration(avg)} per session");
+        }
+        Console.WriteLine($"  Completion:  {ins.CompletionRate * 100:0}% completed");
+        var outcomes = ins.OutcomeCounts
+            .OrderByDescending(kv => kv.Value)
+            .Select(kv => $"{FormatOutcome(kv.Key)} {kv.Value}");
+        Console.WriteLine($"  Outcomes:    {string.Join(", ", outcomes)}");
+        if (ins.TimedCount > 0)
+        {
+            Console.WriteLine($"  Estimation:  {ins.TimedCount} timed, {ins.OverranCount} ran over " +
+                              $"(avg {FormatOverrun(ins.AverageOverrun)})");
+        }
+        var trend = ins.TrendDirection > 0 ? "up from" : ins.TrendDirection < 0 ? "down from" : "same as";
+        Console.WriteLine($"  This week:   {FormatDuration(ins.RecentFocus)} " +
+                          $"({trend} {FormatDuration(ins.PriorFocus)} the previous week)");
+        return 0;
+    }
+
     private static int Resume(ProjectRegistry registry, WorkSessionService sessions)
     {
         var active = registry.GetActiveProject();
@@ -497,6 +536,7 @@ public static class Program
         writer.WriteLine("  context-switcher session extend --minutes <n>");
         writer.WriteLine("  context-switcher session list [--project <name|id>]");
         writer.WriteLine("  context-switcher session show <number> [--project <name|id>]");
+        writer.WriteLine("  context-switcher insights [--project <name|id>]");
         writer.WriteLine("  context-switcher resume");
         writer.WriteLine("  context-switcher status");
         writer.WriteLine();
