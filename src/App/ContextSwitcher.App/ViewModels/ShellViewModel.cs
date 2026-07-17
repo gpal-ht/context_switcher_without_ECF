@@ -59,6 +59,9 @@ public sealed class ShellViewModel : ObservableObject
     private string _selectedSessionDetail = "Select a session to see its details.";
     public string SelectedSessionDetail { get => _selectedSessionDetail; private set => Set(ref _selectedSessionDetail, value); }
 
+    private string _nextUpText = "";
+    public string NextUpText { get => _nextUpText; private set => Set(ref _nextUpText, value); }
+
     private string _insightsText = "";
     public string InsightsText { get => _insightsText; private set => Set(ref _insightsText, value); }
 
@@ -301,6 +304,7 @@ public sealed class ShellViewModel : ObservableObject
               + (OpenSession.Objective.Length > 0 ? $" — {OpenSession.Objective}" : "");
 
         ResumeBriefText = BuildResumeBrief();
+        NextUpText = BuildNextUpText();
         InsightsText = BuildInsightsText();
         BlockersText = BuildBlockersText();
         EstimationText = BuildEstimationText();
@@ -330,6 +334,21 @@ public sealed class ShellViewModel : ObservableObject
         Raise(nameof(OpenSession));
         Raise(nameof(TimerVisible));
         Tick(); // sync the countdown / elapsed prompt to the (possibly new) session
+    }
+
+    private string BuildNextUpText()
+    {
+        var suggestions = _sessions.SuggestNextProject(); // ADR-0019
+        if (suggestions.Count == 0)
+        {
+            return "No active projects yet.";
+        }
+        return string.Join(Environment.NewLine, suggestions.Take(3).Select((s, i) =>
+        {
+            var active = s.IsActive ? " (active)" : "";
+            var detail = !string.IsNullOrEmpty(s.PendingNextAction) ? s.PendingNextAction : s.Reason;
+            return $"{i + 1}. {s.Project}{active} — {detail}";
+        }));
     }
 
     private string BuildInsightsText()

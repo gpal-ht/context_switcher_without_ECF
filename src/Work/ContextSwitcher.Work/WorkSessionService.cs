@@ -325,6 +325,52 @@ public sealed class WorkSessionService
         };
     }
 
+    /// <summary>
+    /// Ranks the non-archived projects to suggest which to pick up next
+    /// (ADR-0019): projects with a pending next action first, then most
+    /// recently worked, then by name. Reports each project's last-worked time,
+    /// pending next action, and a plain-language reason. Pure over the stored
+    /// projects/sessions; reads state, writes and selects nothing.
+    /// </summary>
+    public IReadOnlyList<NextProjectSuggestion> SuggestNextProject()
+    {
+        var state = _store.Load();
+        var activeId = state.ActiveProjectId;
+
+        var suggestions = state.Projects
+            .Where(p => p.Status == ProjectStatus.Active)
+            .Select(p =>
+            {
+                var projectSessions = state.Sessions
+                    .Where(s => s.ProjectId == p.Id)
+                    .OrderByDescending(s => s.StartedUtc)
+                    .ToList();
+                DateTimeOffset? lastWorked = projectSessions.Count > 0 ? projectSessions[0].StartedUtc : null;
+                var pending = projectSessions
+                    .Select(s => s.WrapUp?.NextAction)
+                    .FirstOrDefault(a => !string.IsNullOrWhiteSpace(a));
+
+                var reason = !string.IsNullOrWhiteSpace(pending) ? "You left off with a clear next step."
+                    : lastWorked is not null ? "Recently active."
+                    : "Not started yet.";
+
+                return new NextProjectSuggestion
+                {
+                    Project = p.Name,
+                    IsActive = p.Id == activeId,
+                    LastWorkedUtc = lastWorked,
+                    PendingNextAction = pending,
+                    Reason = reason,
+                };
+            })
+            .OrderByDescending(s => s.PendingNextAction is not null)
+            .ThenByDescending(s => s.LastWorkedUtc ?? DateTimeOffset.MinValue)
+            .ThenBy(s => s.Project, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return suggestions;
+    }
+
     private static TimeSpan Median(IEnumerable<TimeSpan> values)
     {
         var sorted = values.OrderBy(v => v).ToList();

@@ -88,6 +88,8 @@ public static class Program
                 return Estimation(sessions, rest);
             case ["recommend", .. var rest]:
                 return Recommend(sessions, rest);
+            case ["next"]:
+                return NextUp(sessions);
             case ["resume"]:
                 return Resume(registry, sessions);
             case ["status"]:
@@ -360,6 +362,34 @@ public static class Program
         var trend = ins.TrendDirection > 0 ? "up from" : ins.TrendDirection < 0 ? "down from" : "same as";
         Console.WriteLine($"  This week:   {FormatDuration(ins.RecentFocus)} " +
                           $"({trend} {FormatDuration(ins.PriorFocus)} the previous week)");
+        return 0;
+    }
+
+    private static int NextUp(WorkSessionService sessions)
+    {
+        var suggestions = sessions.SuggestNextProject();
+        if (suggestions.Count == 0)
+        {
+            Console.WriteLine("No active projects. Add one with: project add <name>");
+            return 0;
+        }
+        Console.WriteLine("What to work on next:");
+        for (var i = 0; i < suggestions.Count; i++)
+        {
+            var s = suggestions[i];
+            var active = s.IsActive ? " (active)" : "";
+            Console.WriteLine($"  {i + 1}. {s.Project}{active} — {s.Reason}");
+            if (!string.IsNullOrEmpty(s.PendingNextAction))
+            {
+                Console.WriteLine($"       next: {s.PendingNextAction}");
+            }
+            if (s.LastWorkedUtc is DateTimeOffset lastWorked)
+            {
+                Console.WriteLine($"       last worked: {lastWorked:u}");
+            }
+        }
+        Console.WriteLine();
+        Console.WriteLine("  (A suggestion — switch when you're ready: project switch <name>.)");
         return 0;
     }
 
@@ -637,6 +667,7 @@ public static class Program
         writer.WriteLine("  context-switcher blockers [--project <name|id>] [--min <n>]");
         writer.WriteLine("  context-switcher estimation [--project <name|id>]");
         writer.WriteLine("  context-switcher recommend [--project <name|id>]");
+        writer.WriteLine("  context-switcher next");
         writer.WriteLine("  context-switcher resume");
         writer.WriteLine("  context-switcher status");
         writer.WriteLine();
