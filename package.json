@@ -1,0 +1,36 @@
+{
+  "name": "@gpal-ht/context-switcher",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Context Switcher release-engineering foundation. Private package: npm provides release metadata and validation, not public distribution.",
+  "license": "UNLICENSED",
+  "scripts": {
+    "test": "bash acceptance_tests/run_all.sh",
+    "test:acceptance": "bash acceptance_tests/run_all.sh",
+    "test:standalone": "bash acceptance_tests/run_all.sh --backend standalone",
+    "test:ecf": "bash acceptance_tests/run_all.sh --backend ecf",
+    "test:boundary": "bash acceptance_tests/check_backend_boundary.sh",
+    "test:bundle": "bash acceptance_tests/check_bundle_integrity.sh",
+    "test:bundle:selftest": "bash acceptance_tests/check_bundle_integrity.sh --self-test",
+    "test:consumer": "bash acceptance_tests/check_consumer_integration.sh",
+    "backend": "python scripts/engineering_backend.py --describe",
+    "app:build": "dotnet build src/Work/ContextSwitcher.Work.Tests && dotnet build src/App/ContextSwitcher.Cli",
+    "app:test": "bash acceptance_tests/check_product_tests.sh",
+    "app:run": "dotnet run --project src/App/ContextSwitcher.Cli --",
+    "release:manifest": "python scripts/build-release-manifest.py",
+    "release:validate": "python scripts/validate-release.py",
+    "release:pack": "npm pack --dry-run --json"
+  },
+  "files": [
+    "release/",
+    "decisions/",
+    "work_requests/",
+    "acceptance_tests/",
+    "config/",
+    "scripts/",
+    "docs/",
+    "vendor/ecf/",
+    "README.md",
+    "CLAUDE.md"
+  ]
+}

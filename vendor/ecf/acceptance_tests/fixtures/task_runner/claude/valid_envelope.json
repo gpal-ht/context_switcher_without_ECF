@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "task_id": "TASK-CLASSIFY-0001",
+  "task_version": "0.1.0",
+  "work_request_id": "WR-0001",
+  "status": "completed",
+  "engineering_intent": { "primary": "design_solution", "secondary": [] },
+  "classification_evidence": {
+    "engineering_question": "Should Repository Integration become a first-class subsystem?",
+    "desired_outcome": "Engineering Recommendation",
+    "requested_deliverables": ["Engineering Recommendation Report"]
+  },
+  "confidence": { "level": "high", "justification": "The work request asks which architecture to adopt." },
+  "findings": []
+}

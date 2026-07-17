@@ -1,0 +1,48 @@
+# Build output
+
+bin/
+obj/
+
+# Visual Studio
+
+.vs/
+*.user
+*.suo
+
+# Rider
+
+.idea/
+
+# VS Code
+
+.vscode/
+
+# NuGet
+
+packages/
+
+# Logs
+
+*.log
+
+# Temporary files
+
+*.tmp
+*.temp
+
+# Windows
+
+Thumbs.db
+Desktop.ini
+
+# Generated documentation
+
+*.cache
+
+# Python bytecode / caches (release tooling)
+
+__pycache__/
+*.py[cod]
+
+runtime/
+generated/

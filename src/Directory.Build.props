@@ -1,0 +1,13 @@
+<Project>
+  <!-- Shared compiler settings for all Context Switcher product code (ADR-0008).
+       Pure BCL: no PackageReference is permitted while the offline toolchain
+       constraint stands. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+</Project>

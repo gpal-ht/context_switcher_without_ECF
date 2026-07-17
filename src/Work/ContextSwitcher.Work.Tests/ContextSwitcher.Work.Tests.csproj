@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Deterministic zero-dependency test runner (ADR-0008): xunit cannot be
+       restored in the offline toolchain, so this console project discovers
+       [Test] methods via reflection and exits non-zero on any failure. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>ContextSwitcher.Work.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ContextSwitcher.Work\ContextSwitcher.Work.csproj" />
+  </ItemGroup>
+</Project>

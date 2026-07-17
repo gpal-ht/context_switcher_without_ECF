@@ -1,0 +1,54 @@
+{
+  "name": "@gpal-ht/ecf",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Engineering Control Framework — the Control Plane: a declarative, validated workflow/task execution model (workflow validator, planner, provenance/stale detection, crash-consistent runtime transactions, run initializer, and a Claude-backed single-task runner) over a bundled, exactly-pinned Engineering Knowledge Base. npm is used here only as a packaging and release-control interface, not as a JavaScript runtime dependency.",
+  "keywords": [
+    "engineering-control-framework",
+    "workflow-execution",
+    "provenance",
+    "runtime-transactions",
+    "task-runner",
+    "ecf"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gpal-ht/ecf.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gpal-ht/ecf/issues"
+  },
+  "homepage": "https://github.com/gpal-ht/ecf#readme",
+  "files": [
+    "README.md",
+    "FOUNDATION.md",
+    "FRAMEWORK_ARCHITECTURE.md",
+    "ECF_ROADMAP.md",
+    "ecf-version.yaml",
+    "VERSION",
+    ".gitattributes",
+    "workflows/",
+    "tasks/",
+    "tools/",
+    "runtime_schemas/",
+    "scripts/",
+    "standards/",
+    "roles/",
+    "knowledge/",
+    "transformations/",
+    "review_packs/",
+    "decisions/",
+    "work_requests/",
+    "examples/",
+    "research/",
+    "execution/",
+    "vendor/",
+    "release/"
+  ],
+  "scripts": {
+    "test": "python scripts/run-tests.py",
+    "release:manifest": "python scripts/build-release-manifest.py",
+    "release:validate": "python scripts/validate-release.py",
+    "pack:check": "npm pack --dry-run --json"
+  }
+}

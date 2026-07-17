@@ -1,0 +1,11 @@
+dependency: ecf
+version: 0.2.0
+source: https://github.com/gpal-ht/ecf.git
+source_commit: eb15e18c34fe0fb4292e896962845dae51fe6da7
+source_tag: v0.2.0
+bundle_date: 2026-07-13 13:41:26
+status: released
+ekb_source: https://github.com/gpal-ht/engineering_kb.git
+ekb_version: 0.2.0
+ekb_commit: ce160741b767c4f108c6483fb94d13a2cc934e3a
+ekb_tag: v0.2.0

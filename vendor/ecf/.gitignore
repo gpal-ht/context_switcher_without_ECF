@@ -1,0 +1,13 @@
+generated/
+runtime/
+
+# Python bytecode and caches must never be tracked.
+__pycache__/
+*.py[cod]
+
+# Source scripts under scripts/ are tracked. Ignore only generated/runtime
+# script artifacts, not the .ps1 sources themselves.
+scripts/**/generated/
+scripts/**/runtime/
+scripts/*.tmp
+scripts/*.txt

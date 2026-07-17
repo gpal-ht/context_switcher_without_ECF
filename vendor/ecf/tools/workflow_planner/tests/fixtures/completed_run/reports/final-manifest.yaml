@@ -1,0 +1,7 @@
+run_id: RUN-REASON-COMPLETED-0001
+work_request_id: WR-0001
+run_type: reasoning
+run_status: completed
+final_manifest: true
+tasks_recorded: 18
+next_required_action: request_human_approval

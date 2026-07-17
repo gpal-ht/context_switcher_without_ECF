@@ -1,0 +1,65 @@
+{
+  "schema_version": "1.0.0",
+  "manifest_kind": "ecf_release_manifest",
+  "package_name": "@gpal-ht/ecf",
+  "package_version": "0.2.0",
+  "canonical_version_source": "package.json:version",
+  "version_mirror": {
+    "VERSION": "0.2.0"
+  },
+  "repository_url": "git+https://github.com/gpal-ht/ecf.git",
+  "git_commit": "9a698c656146ce7d025a09b8f0b4b322e0ee64a8",
+  "artifact_type": "engineering_control_framework",
+  "release_status": "released",
+  "content_digest": "sha256:56f4c8ddd48d4fe97a1edc0c54bdc805ca464657c66ecf4e7d42ef2ca11accf0",
+  "content_file_count": 221,
+  "tarball_digest": null,
+  "framework": {
+    "version": "v0.1",
+    "schema_version": "0.1.0",
+    "commit_policy": "best_effort"
+  },
+  "bundled_ekb": {
+    "package_name": "@gpal-ht/engineering-kb",
+    "bundle_version": "0.2.0",
+    "manifest_package_version": "0.2.0",
+    "source_commit": "ce160741b767c4f108c6483fb94d13a2cc934e3a",
+    "source_tag": "v0.2.0",
+    "source": "https://github.com/gpal-ht/engineering_kb.git",
+    "status": "released",
+    "ontology": "decision_guide",
+    "package_contract_version": "1.0"
+  },
+  "compatibility": {
+    "workflow": "WF-REASON-0001",
+    "workflow_version": "0.2.0",
+    "changed_task_versions": {
+      "TASK-TRACE-0002": "0.2.0",
+      "TASK-TRACE-0003": "0.2.0"
+    },
+    "consumer_entrypoints": [
+      "scripts/initialize-run.ps1",
+      "scripts/plan-workflow.ps1",
+      "scripts/run-one-task.ps1",
+      "scripts/validate-workflows.ps1",
+      "tools/workflow_validator/validate_workflow.py",
+      "tools/workflow_planner/plan_workflow.py",
+      "tools/run_initializer",
+      "tools/runtime_state",
+      "tools/task_runner/run_task.py",
+      "tools/task_runner/executors/claude_code.py",
+      "tools/artifact_fingerprint",
+      "runtime_schemas/RUN_STATE_SCHEMA.md"
+    ],
+    "live_task_adapters": [
+      "TASK-CLASSIFY-0001"
+    ]
+  },
+  "tests_required": [
+    "npm test",
+    "python scripts/validate-workflows.ps1 (WF-REASON-0001: 21 rules)"
+  ],
+  "generated_at": "2026-07-13T08:06:22Z",
+  "publish_status": "not_published",
+  "git_tag": null
+}

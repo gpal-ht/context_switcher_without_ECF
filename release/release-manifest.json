@@ -1,0 +1,140 @@
+{
+  "schema_version": "0.2.0",
+  "manifest_kind": "context_switcher_release_manifest",
+  "generated_at": "2026-07-16T14:57:01Z",
+  "engineering_backend": "ecf",
+  "capabilities": [
+    {
+      "name": "governance_acceptance_checks",
+      "available": true
+    },
+    {
+      "name": "release_manifest_and_validation",
+      "available": true
+    },
+    {
+      "name": "npm_packaging",
+      "available": true
+    },
+    {
+      "name": "ecf_workflow_execution",
+      "available": true
+    },
+    {
+      "name": "ecf_bundle_integrity_gates",
+      "available": true
+    },
+    {
+      "name": "ecf_provenance_claims",
+      "available": true
+    },
+    {
+      "name": "ecf_bundle_refresh",
+      "available": true
+    }
+  ],
+  "project": {
+    "name": "@gpal-ht/context-switcher",
+    "version": "0.2.0",
+    "private": true,
+    "commit": "1dcf2985fdec0c2c23ce3d989ad0b671a9738396",
+    "commit_policy": "best_effort"
+  },
+  "acceptance_level": {
+    "claimed": true,
+    "single_live_task_proven": true,
+    "full_workflow_proven": false,
+    "statement": "single live task proven; full workflow not yet proven"
+  },
+  "bundled_ecf": {
+    "claimed": true,
+    "strategy": "included_self_contained_bundle",
+    "canonical_version": "v0.1",
+    "canonical_schema_version": "0.1.0",
+    "commit_policy": "best_effort",
+    "bundle_version": "0.2.0",
+    "source": "https://github.com/gpal-ht/ecf.git",
+    "source_commit": "eb15e18c34fe0fb4292e896962845dae51fe6da7",
+    "bundle_date": "2026-07-13 13:41:26",
+    "status": "released"
+  },
+  "bundled_ekb": {
+    "claimed": true,
+    "version": "0.2.0",
+    "source": "https://github.com/gpal-ht/engineering_kb.git",
+    "source_commit": "ce160741b767c4f108c6483fb94d13a2cc934e3a",
+    "ecf_recorded_ekb_version": "0.2.0",
+    "ecf_recorded_ekb_source": "https://github.com/gpal-ht/engineering_kb.git",
+    "ecf_recorded_ekb_commit": "ce160741b767c4f108c6483fb94d13a2cc934e3a"
+  },
+  "compatibility": {
+    "workflow": "WF-REASON-0001",
+    "consumer_scripts": [
+      "scripts/initialize-ecf-run.ps1",
+      "scripts/plan-ecf-workflow.ps1",
+      "scripts/run-ecf-task.ps1",
+      "scripts/bundle-ecf.ps1",
+      "scripts/lib/Resolve-EngineeringBackend.ps1",
+      "scripts/engineering_backend.py"
+    ],
+    "required_capabilities": [
+      {
+        "path": "workflows/reasoning/WF-REASON-0001-engineering-recommendation.md",
+        "present": true
+      },
+      {
+        "path": "tasks/decision_support/TASK-DECIDE-0002-generate-engineering-recommendation.md",
+        "present": true
+      },
+      {
+        "path": "tasks/production/TASK-PRODUCE-0001-generate-engineering-recommendation-report.md",
+        "present": true
+      },
+      {
+        "path": "tools/workflow_validator/validate_workflow.py",
+        "present": true
+      },
+      {
+        "path": "tools/workflow_planner/plan_workflow.py",
+        "present": true
+      },
+      {
+        "path": "tools/runtime_state",
+        "present": true
+      },
+      {
+        "path": "tools/task_runner/run_task.py",
+        "present": true
+      },
+      {
+        "path": "tools/task_runner/executors/claude_code.py",
+        "present": true
+      },
+      {
+        "path": "tools/artifact_fingerprint",
+        "present": true
+      },
+      {
+        "path": "runtime_schemas/RUN_STATE_SCHEMA.md",
+        "present": true
+      }
+    ],
+    "required_capabilities_present": true
+  },
+  "baselines": {
+    "architecture_decisions": [
+      "ADR-0001-use-winui3",
+      "ADR-0002-modular-platform-architecture",
+      "ADR-0003-knowledge-item-domain-model",
+      "ADR-0004-event-driven-application-design",
+      "ADR-0005-canonical-subsystem-model",
+      "ADR-0006-release-and-bundling-strategy",
+      "ADR-0007-optional-ecf-integration",
+      "ADR-0008-work-engine-implementation-foundation"
+    ],
+    "accepted_work_requests": [
+      "WR-0001-repository-integration-subsystem",
+      "WR-0002-reconcile-canonical-subsystem-model"
+    ]
+  }
+}

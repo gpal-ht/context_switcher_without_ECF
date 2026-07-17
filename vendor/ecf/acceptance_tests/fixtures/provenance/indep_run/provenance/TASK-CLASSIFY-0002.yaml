@@ -1,0 +1,19 @@
+schema_version: 1
+run_id: RUN-INDEP-0001
+work_request_id: WR-0001
+workflow_id: WF-INDEP-0001
+workflow_version: 0.1.0
+task_id: TASK-CLASSIFY-0002
+task_version: 0.1.0
+inputs:
+  - name: a
+    path: task_outputs/a.yaml
+    sha256: b191f5fe6a5b21edb5003a9feac7173ed847999edc1807e8ccea34d0b3a50e43
+output:
+  path: task_outputs/b.yaml
+  sha256: 0000000000000000000000000000000000000000000000000000000000000000
+ecf_version: v0.1
+ecf_commit: TESTCOMMIT
+executor:
+  type: ai
+generated_at: 2026-07-10T10:00:00+05:30

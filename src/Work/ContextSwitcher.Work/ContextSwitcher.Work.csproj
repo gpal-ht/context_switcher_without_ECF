@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Work Engine module (ADR-0002, ADR-0008): owns the work lifecycle.
+       This slice: project registry + active-project selection. -->
+  <PropertyGroup>
+    <RootNamespace>ContextSwitcher.Work</RootNamespace>
+  </PropertyGroup>
+</Project>

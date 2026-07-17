@@ -1,0 +1,54 @@
+{
+  "name": "@gpal-ht/engineering-kb",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Engineering Knowledge Base — reusable software-engineering knowledge objects (decision guides, concepts, patterns, quality attributes, examples) plus a dependency-free Python validation and retrieval engine. npm is used here only as a packaging and release-control interface, not as a JavaScript runtime dependency.",
+  "keywords": [
+    "engineering-knowledge-base",
+    "decision-guides",
+    "knowledge-graph",
+    "software-architecture",
+    "knowledge-objects",
+    "ekb"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gpal-ht/engineering_kb.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gpal-ht/engineering_kb/issues"
+  },
+  "homepage": "https://github.com/gpal-ht/engineering_kb#readme",
+  "files": [
+    "README.md",
+    "FOUNDATION.md",
+    "VERSION",
+    "concepts/",
+    "decision_guides/",
+    "patterns/",
+    "quality_attributes/",
+    "examples/",
+    "standards/",
+    "foundations/",
+    "knowledge_model/",
+    "practices/",
+    "artifacts/",
+    "migrations/",
+    "reviews/",
+    "acceptance_tests/",
+    "coverage/",
+    "release/",
+    "scripts/",
+    "engine/*.py",
+    "engine/README.md"
+  ],
+  "scripts": {
+    "test": "python engine/test_engine.py",
+    "validate": "python engine/ekb.py validate",
+    "integrity": "python engine/ekb.py integrity",
+    "completeness": "python engine/ekb.py completeness",
+    "release:manifest": "python scripts/build-release-manifest.py",
+    "release:validate": "python scripts/validate-release.py",
+    "pack:check": "npm pack --dry-run --json"
+  }
+}

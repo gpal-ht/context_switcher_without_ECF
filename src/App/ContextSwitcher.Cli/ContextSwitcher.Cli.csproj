@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Interim command-line harness (ADR-0008): thin surface over the Work
+       Engine until the WinUI 3 shell (ADR-0001) can be built. Parsing +
+       service calls + text output only; no business rules live here. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>ContextSwitcher.Cli</RootNamespace>
+    <AssemblyName>context-switcher</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Work\ContextSwitcher.Work\ContextSwitcher.Work.csproj" />
+  </ItemGroup>
+</Project>
