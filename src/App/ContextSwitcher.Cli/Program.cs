@@ -78,6 +78,8 @@ public static class Program
                 return ExtendSession(sessions, rest);
             case ["session", "list"]:
                 return ListSessions(registry, sessions);
+            case ["session", "show", var indexText]:
+                return ShowSession(registry, sessions, indexText);
             case ["resume"]:
                 return Resume(registry, sessions);
             case ["status"]:
@@ -209,21 +211,73 @@ public static class Program
             return 0;
         }
         Console.WriteLine($"Work sessions for '{active.Name}' (most recent first):");
-        foreach (var session in history)
+        for (var i = 0; i < history.Count; i++)
         {
+            var session = history[i];
             var when = session.StartedUtc.ToString("u");
+            var n = $"[{i + 1}]";
             if (session.IsOpen)
             {
-                Console.WriteLine($"  {when}  in progress" +
+                Console.WriteLine($"  {n} {when}  in progress" +
                                   (session.Objective.Length > 0 ? $" — {session.Objective}" : ""));
             }
             else
             {
-                Console.WriteLine($"  {when}  {FormatOutcome(session.WrapUp!.Outcome)}, " +
+                Console.WriteLine($"  {n} {when}  {FormatOutcome(session.WrapUp!.Outcome)}, " +
                                   $"{FormatDuration(session.Duration ?? TimeSpan.Zero)}" +
                                   (session.Objective.Length > 0 ? $" — {session.Objective}" : ""));
             }
         }
+        Console.WriteLine();
+        Console.WriteLine("See full detail with: session show <number>");
+        return 0;
+    }
+
+    private static int ShowSession(ProjectRegistry registry, WorkSessionService sessions, string indexText)
+    {
+        var active = registry.GetActiveProject();
+        if (active is null)
+        {
+            Console.Error.WriteLine("error: no active project. Select one with: project switch <name>");
+            return 2;
+        }
+        var history = sessions.ListSessionsForActiveProject();
+        if (!int.TryParse(indexText, out var index) || index < 1 || index > history.Count)
+        {
+            Console.Error.WriteLine(history.Count == 0
+                ? $"error: '{active.Name}' has no sessions yet."
+                : $"error: session number must be between 1 and {history.Count} (see: session list).");
+            return 2;
+        }
+
+        var s = history[index - 1];
+        Console.WriteLine($"Session {index} of {history.Count} — project '{active.Name}'");
+        if (s.Objective.Length > 0) Console.WriteLine($"  Objective:  {s.Objective}");
+        Console.WriteLine($"  Started:    {s.StartedUtc:u}");
+        if (s.IsOpen)
+        {
+            Console.WriteLine("  Status:     in progress");
+            if (s.RemainingAt(DateTimeOffset.UtcNow) is TimeSpan rem)
+            {
+                Console.WriteLine(rem > TimeSpan.Zero
+                    ? $"  Focus:      {FormatDuration(rem)} left of {FormatDuration(s.PlannedDuration!.Value)}"
+                    : $"  Focus:      time is up ({FormatDuration(-rem)} over {FormatDuration(s.PlannedDuration!.Value)})");
+            }
+            return 0;
+        }
+
+        Console.WriteLine($"  Ended:      {s.EndedUtc:u}");
+        Console.WriteLine($"  Duration:   {FormatDuration(s.Duration ?? TimeSpan.Zero)}");
+        if (s.PlannedDuration is TimeSpan planned)
+        {
+            Console.WriteLine($"  Planned:    {FormatDuration(planned)} ({FormatOverrun(s.Overrun)})");
+        }
+        Console.WriteLine($"  Outcome:    {FormatOutcome(s.WrapUp!.Outcome)}");
+        WriteFieldIfPresent("Completed", s.WrapUp!.CompletedWork);
+        WriteFieldIfPresent("Unfinished", s.WrapUp!.UnfinishedWork);
+        WriteFieldIfPresent("Blockers", s.WrapUp!.Blockers);
+        WriteFieldIfPresent("Notes", s.WrapUp!.FutureSelfNotes);
+        WriteFieldIfPresent("Next action", s.WrapUp!.NextAction);
         return 0;
     }
 
@@ -377,6 +431,14 @@ public static class Program
             ? $"{(int)d.TotalHours}h {d.Minutes}m"
             : d.TotalMinutes >= 1 ? $"{d.Minutes}m" : $"{d.Seconds}s";
 
+    private static string FormatOverrun(TimeSpan? overrun) => overrun switch
+    {
+        null => "no plan",
+        { } o when o > TimeSpan.Zero => $"{FormatDuration(o)} over",
+        { } o when o < TimeSpan.Zero => $"{FormatDuration(-o)} early",
+        _ => "exactly on time",
+    };
+
     private static void PrintOutcomes(TextWriter writer)
     {
         var names = Enum.GetValues<SessionOutcome>().Select(FormatOutcome);
@@ -397,6 +459,7 @@ public static class Program
                          "[--completed <t>] [--unfinished <t>] [--blockers <t>] [--notes <t>] [--next <t>]");
         writer.WriteLine("  context-switcher session extend --minutes <n>");
         writer.WriteLine("  context-switcher session list");
+        writer.WriteLine("  context-switcher session show <number>");
         writer.WriteLine("  context-switcher resume");
         writer.WriteLine("  context-switcher status");
         writer.WriteLine();
