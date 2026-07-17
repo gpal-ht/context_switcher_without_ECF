@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Acceptance test: Work Engine product build + deterministic test suite
-# (ADR-0008). Part of the STANDALONE suite — requires no ECF, no network, and
-# no NuGet packages (pure-BCL policy). The .NET SDK is required toolchain for
-# the product; its absence is an honest FAIL, never a silent skip.
+# (ADR-0008). Requires no network and no NuGet packages (pure-BCL policy).
+# The .NET SDK is required toolchain for the product; its absence is an
+# honest FAIL, never a silent skip.
 # Exit 0 = build succeeded and every product test passed.
 set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

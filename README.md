@@ -47,22 +47,24 @@ This project is built on five core principles:
 
 MVP implementation (Stage 1 — Assisted Context Switching)
 
-The repository foundation (product vision, governance, architecture,
-workflow) is established. Product implementation began 2026-07-16 with the
-Work Engine project registry (ADR-0008):
+Context Switcher is a **standalone .NET application** (ADR-0010 removed the
+former optional ECF integration). Product implementation so far:
 
-* create, list, and archive projects
-* select the active project
+* project registry — create, list, archive, and select the active project (ADR-0008)
+* work sessions and wrap-up — start/end a session, record the outcome and
+  reflection, and read a resume brief on return (ADR-0009)
 * local persistence (`%LOCALAPPDATA%\ContextSwitcher\workspace.json`)
 * interim CLI harness pending the WinUI 3 shell
 
 ```bash
-npm run app:test                              # build + deterministic product tests
-npm run app:run -- project add "My Project"   # try the interim CLI
+npm run app:test                                   # build + deterministic product tests
+npm run app:run -- project add "My Project"        # try the interim CLI
+npm run app:run -- session start --objective "..." # start a work session
 ```
 
-Work sessions, wrap-up, and the full context-switch flow are the next
-slices (see `docs/features/project_context_switch.md`).
+The full context-switch flow (end → switch → resume → start) works today;
+timer-driven switching and AI-assisted wrap-ups are later slices (see
+`docs/features/project_context_switch.md`).
 
 ---
 
@@ -130,15 +132,12 @@ Implementation begins only after explicit approval.
 # Repository Structure
 
 ```text
+src/            .NET application (Work Engine + interim CLI harness)
 docs/           Product, architecture, and standards
 decisions/      Architecture Decision Records (ADRs)
-prompts/        Reusable AI prompts
-templates/      Project document templates
-config/         Explicit project configuration (engineering backend)
-scripts/        Release tooling and the ECF adapter scripts
 acceptance_tests/  Offline project acceptance suite
-release/        Release process, manifest, and compatibility policy
-vendor/ecf/     Optional bundled ECF (ecf backend only)
+scripts/        Release manifest / validation tooling
+release/        Release process, manifest, and versioning policy
 .claude/        Claude Code configuration
 ```
 
@@ -146,29 +145,17 @@ Additional directories will be introduced as the project evolves.
 
 ---
 
-# Engineering Backends — ECF Is Optional
+# Standalone Application
 
-Context Switcher supports two explicit engineering backends
-([ADR-0007](decisions/ADR-0007-optional-ecf-integration.md),
-[docs/engineering/ENGINEERING_BACKENDS.md](docs/engineering/ENGINEERING_BACKENDS.md)):
-
-- **`standalone`** (default when unconfigured) — develop, test, validate, and
-  package Context Switcher with **no ECF** repository, bundle, or environment.
-  ECF-only operations refuse honestly (`UNSUPPORTED_CAPABILITY`) instead of
-  pretending ECF guarantees exist.
-- **`ecf`** — ECF-integrated mode through a narrow, validated adapter over the
-  bundled `vendor/ecf/`. Explicitly requested ECF that is missing or
-  incompatible is a hard configuration failure, never a silent fallback.
+Context Switcher is a self-contained Windows application with **no external
+framework dependency**. ADR-0010 removed the former optional ECF integration
+and its engineering-backend abstraction; there is a single operating mode and
+no backend configuration.
 
 ```bash
-npm run backend            # show the active backend + capability report
-npm run test:standalone    # required gate — no ECF needed
-npm run test:ecf           # standalone suite + ECF integration suite
+npm test              # offline acceptance suite (builds + runs product tests)
+npm run app:test      # product build + deterministic Work Engine tests
 ```
-
-Mode is selected in `config/engineering-backend.yaml` (or the
-`CONTEXT_SWITCHER_ENGINEERING_BACKEND` environment variable). This repository
-commits `ecf` because it ships a pinned, validated bundle.
 
 ---
 

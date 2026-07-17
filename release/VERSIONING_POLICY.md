@@ -1,58 +1,44 @@
 # Context Switcher — Versioning Policy
 
-Status: Draft foundation (v0.2.0)
-Applies to: the **Context Switcher project** version line only.
+Status: App-only foundation (ADR-0010; ECF removed)
+Applies to: the Context Switcher application version line.
 
-## 1. Three independent version lines
+## 1. One version line
 
-Context Switcher records three distinct identities. They are **never** conflated.
+Context Switcher is a standalone application with a single version identity —
+`package.json` `version` (e.g. `0.2.0`). ADR-0010 removed the former bundled
+ECF/EKB dependency lines; there is no separate dependency version to track.
+The application also carries an independent **persistence schema version**
+(`WorkspaceState.CurrentSchemaVersion`, ADR-0008/0009) governing the on-disk
+workspace file; that is a data-format version, not the product version.
 
-| Line | Source of truth | Example |
-|---|---|---|
-| **Context Switcher (project)** | `package.json` `version` | `0.2.0` |
-| **Bundled ECF** | `vendor/ecf/ecf-version.yaml` (canonical) + `vendor/ecf/VERSION` (bundle pin/commit) | `v0.1` / `v0.1-local` @ `7fd39af…` |
-| **Bundled EKB** | `vendor/ecf/vendor/engineering_kb/VERSION` | `v0.1-local` @ `6084948…` |
+## 2. Semantic versioning
 
-**Rule:** Do **not** use a Context Switcher version bump as a substitute for ECF or
-EKB versioning. ECF/EKB identities change only when the bundle is refreshed
-(`scripts/bundle-ecf.ps1`); the project version changes only for project reasons
-below. All three are recorded together in `release/release-manifest.json`.
-
-## 2. Semantic versioning for the project line
-
-The Context Switcher project version follows Semantic Versioning (`MAJOR.MINOR.PATCH`).
+The project version follows Semantic Versioning (`MAJOR.MINOR.PATCH`).
 
 ### MAJOR — incompatible / migration-forcing
 
-- Incompatible project **data format** (persisted state, work-session, knowledge store).
-- Incompatible **bundle / adoption contract** (how the project consumes ECF).
-- **Architecture model break** requiring migration (e.g. a canonical-subsystem change
-  that invalidates existing artifacts).
-- **Removal** of a supported consumer workflow.
+- Incompatible persisted **data format** with no automatic migration.
+- **Architecture model break** requiring migration.
+- Removal of a supported user-facing capability.
 
 ### MINOR — backward-compatible additions
 
-- New backward-compatible project capabilities.
-- New Work Request / workflow integration.
+- New backward-compatible product capabilities.
 - New architecture module.
-- New consumer automation (scripts, gates) that does not break existing usage.
+- New tooling or gates that do not break existing usage.
 
 ### PATCH — compatible fixes
 
-- Acceptance-test fixes.
-- Wrapper / path fixes.
-- Bundle **metadata** corrections.
-- Documentation corrections.
-- Dependency **refresh that preserves compatibility** (e.g. an ECF bundle refresh
-  with no contract change — the project PATCH records that the refresh happened;
-  the ECF/EKB commit fields carry the actual dependency identity).
+- Bug fixes, acceptance-test fixes, documentation corrections.
+- Additive persistence changes that keep existing workspace files valid
+  (ADR-0009 rule: additive optional fields do not bump the schema version).
 
 ## 3. Pre-1.0 expectations
 
-While the project is `0.y.z` and implementation has not started (see `README.md`),
-the surface is explicitly unstable. Breaking changes MAY land in MINOR increments,
-but the categories above still guide the choice, and every release is recorded in
-the manifest with its full ECF/EKB pin.
+While the project is `0.y.z`, the surface is explicitly unstable. Breaking
+changes MAY land in MINOR increments, but the categories above still guide the
+choice, and every release is recorded in the manifest.
 
 ## 4. Where versions are asserted
 

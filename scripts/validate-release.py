@@ -1,43 +1,26 @@
 #!/usr/bin/env python3
-"""Validate Context Switcher release readiness (offline; no publish, no live Claude).
+"""Validate Context Switcher release readiness (offline; app-only; ADR-0010).
 
-Enforces the identity/compatibility/packaging release gates against live
-repository state and the on-disk release manifest. Complements — does NOT
-replace — the acceptance suite:
+Enforces the identity and packaging release gates against live repository
+state and the on-disk release manifest. Complements — does NOT replace — the
+acceptance suite:
 
-  * `npm test`                    -> project acceptance tests (offline)
-  * `npm run test:bundle:selftest`-> bundle-integrity parser/validator self-test
-  * `npm run test:consumer`       -> offline consumer integration
-  * `npm run release:validate`    -> THIS tool (identity + manifest + packaging)
-  * `npm run release:pack`        -> `npm pack --dry-run --json` (content review)
+  * `npm test`                 -> project acceptance tests (offline)
+  * `npm run release:validate` -> THIS tool (identity + manifest + packaging)
+  * `npm run release:pack`     -> `npm pack --dry-run --json` (content review)
 
-Standard library only. Reads the manifest builder by file path so both tools
-share one capability list and one manifest shape. Exit 0 = all gates pass.
+Standard library only. Loads the manifest builder by file path so both tools
+share one manifest shape. Exit 0 = all gates pass.
 """
 from __future__ import annotations
 
 import importlib.util
 import json
-import re
 import sys
 from pathlib import Path
 
-# Do NOT write .pyc bytecode. This tool loads the manifest builder by path (below);
-# without this guard, importing it would create scripts/__pycache__/*.pyc — a dev
-# artifact that is neither wanted in the working tree nor in the release package.
+# Do NOT write .pyc bytecode when importing the builder by path.
 sys.dont_write_bytecode = True
-
-SHA40 = re.compile(r"^[0-9a-f]{40}$")
-# Windows drive path (C:\ or C:/), git-bash mount (/c/...), or any backslash.
-MACHINE_PATH = re.compile(r"^[A-Za-z]:[\\/]|^/[A-Za-z]/|\\")
-
-
-def is_sha40(v) -> bool:
-    return bool(v) and bool(SHA40.match(v))
-
-
-def has_machine_path(v) -> bool:
-    return bool(v) and bool(MACHINE_PATH.search(v))
 
 
 def load_builder(root: Path):
@@ -64,9 +47,6 @@ class Gates:
         print(f"WARN: {msg}")
         self.warn += 1
 
-    def skip(self, msg):
-        print(f"SKIP: {msg}")
-
     def assert_(self, cond, ok_msg, bad_msg):
         if cond:
             self.ok(ok_msg)
@@ -77,25 +57,10 @@ class Gates:
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     builder = load_builder(root)
-    eb = builder.ENGINEERING_BACKEND
     g = Gates()
 
     print("== Context Switcher Release Validation ==")
-    # Composition root (ADR-0007): an invalid backend configuration is itself
-    # a release-gate failure — reported clearly, never silently downgraded.
-    try:
-        live = builder.build_manifest(root)
-    except (eb.BackendConfigurationError,
-            eb.BackendUnavailableError,
-            eb.BackendIncompatibleError) as exc:
-        g.bad(f"engineering backend configuration invalid: {exc}")
-        print()
-        print(f"release-validation: {g.fail} failure(s), {g.warn} warning(s)")
-        print("RESULT: RELEASE GATES FAIL")
-        return 1
-    backend = live["engineering_backend"]
-    ecf_mode = backend == "ecf"
-    g.ok(f"engineering backend resolved and valid: {backend}")
+    live = builder.build_manifest(root)
 
     # --- Gate 1: project identity (private + version present) -----------------
     pj = root / "package.json"
@@ -135,65 +100,14 @@ def main() -> int:
                   f"version drift: manifest={disk.get('project', {}).get('version')} "
                   f"package.json={pj_data.get('version')}")
 
-    ecf = live["bundled_ecf"]
-    ekb = live["bundled_ekb"]
+    # --- Gate 3: application projects present ----------------------------------
+    projects = live["application"]["projects"]
+    missing = [p["path"] for p in projects if not p["present"]]
+    g.assert_(not missing,
+              f"all {len(projects)} application projects present",
+              "missing application projects: " + ", ".join(missing))
 
-    if ecf_mode:
-        # --- Gate 3: bundled ECF identity complete & machine-path-free --------
-        g.assert_(is_sha40(ecf.get("source_commit")),
-                  f"ECF source_commit is a 40-hex commit ({ecf.get('source_commit')})",
-                  f"ECF source_commit missing/invalid ({ecf.get('source_commit')})")
-        g.assert_(bool(ecf.get("source")) and not has_machine_path(ecf.get("source")),
-                  f"ECF source is machine-path-free ({ecf.get('source')})",
-                  f"ECF source missing or embeds a machine path ({ecf.get('source')})")
-
-        # --- Gate 4: nested EKB identity + ECF<->EKB metadata agreement -------
-        recorded = ekb.get("ecf_recorded_ekb_commit")
-        nested = ekb.get("source_commit")
-        g.assert_(is_sha40(nested),
-                  f"nested EKB source_commit is 40-hex ({nested})",
-                  f"nested EKB source_commit missing/invalid ({nested})")
-        g.assert_(is_sha40(recorded),
-                  f"ECF VERSION records an EKB commit ({recorded})",
-                  f"ECF VERSION ekb_commit missing/invalid ({recorded})")
-        if is_sha40(recorded) and is_sha40(nested):
-            g.assert_(recorded == nested,
-                      "ECF-recorded EKB commit matches nested EKB VERSION",
-                      f"ECF/EKB metadata DISAGREE: ecf.ekb_commit={recorded} nested={nested}")
-
-        # --- Gate 5: required bundled capabilities present ---------------------
-        caps = live["compatibility"]["required_capabilities"]
-        missing = [c["path"] for c in caps if not c["present"]]
-        g.assert_(not missing,
-                  f"all {len(caps)} required bundled capabilities present",
-                  "missing bundled capabilities: " + ", ".join(missing))
-    else:
-        # --- Gates 3-5 (standalone): honesty instead of identity --------------
-        # ECF identity gates do not apply; what MUST hold is that the manifest
-        # claims no ECF guarantee of any kind.
-        g.skip("Gates 3-5 (ECF/EKB identity, bundled capabilities): "
-               "not applicable on the standalone backend")
-        g.assert_(ecf.get("claimed") is False,
-                  "manifest claims no bundled-ECF identity (standalone)",
-                  "manifest claims bundled-ECF identity on the standalone backend")
-        g.assert_(ekb.get("claimed") is False,
-                  "manifest claims no bundled-EKB identity (standalone)",
-                  "manifest claims bundled-EKB identity on the standalone backend")
-        g.assert_(live["compatibility"].get("workflow") is None,
-                  "manifest claims no ECF workflow compatibility (standalone)",
-                  "manifest claims ECF workflow compatibility on the standalone backend")
-        unavailable = {c["name"]: c["available"] for c in live.get("capabilities", [])}
-        g.assert_(unavailable.get("ecf_workflow_execution") is False,
-                  "capability matrix reports ecf_workflow_execution unavailable",
-                  "capability matrix wrongly advertises ecf_workflow_execution")
-
-    # --- Gate 6: consumer scripts present -------------------------------------
-    for s in builder.CONSUMER_SCRIPTS:
-        g.assert_((root / s).exists(),
-                  f"consumer script present: {s}",
-                  f"consumer script missing: {s}")
-
-    # --- Gate 7: packaging excludes runtime/generated output ------------------
+    # --- Gate 4: packaging excludes runtime/generated output ------------------
     files = pj_data.get("files", [])
     leaked = [f for f in files if f.strip("/").split("/")[0] in ("runtime", "generated")]
     g.assert_(not leaked,
@@ -206,30 +120,10 @@ def main() -> int:
                   f".gitignore ignores {d}",
                   f".gitignore does not ignore {d}")
 
-    # --- Gate 8: acceptance level recorded honestly ---------------------------
-    al = live["acceptance_level"]
-    if ecf_mode:
-        g.assert_(al.get("claimed") is True
-                  and al.get("single_live_task_proven") is True
-                  and al.get("full_workflow_proven") is False,
-                  f"acceptance level recorded honestly ({al.get('statement')})",
-                  "acceptance level not recorded as expected")
-    else:
-        g.assert_(al.get("claimed") is False,
-                  "no ECF acceptance level claimed (standalone)",
-                  "ECF acceptance level claimed on the standalone backend")
-
-    # Advisory: version-line independence (informational, never fails; ecf only).
-    if ecf_mode and pj_data.get("version") and ecf.get("bundle_version") \
-            and pj_data["version"] == ecf["bundle_version"].lstrip("v"):
-        g.wn("project version equals ECF bundle version string — keep the version "
-             "lines independent (do not bump the project as a proxy for ECF/EKB)")
-
     print()
     print(f"release-validation: {g.fail} failure(s), {g.warn} warning(s)")
     if g.fail == 0:
-        print("RESULT: RELEASE GATES PASS "
-              "(offline; live Claude not invoked; nothing published)")
+        print("RESULT: RELEASE GATES PASS (offline; nothing published)")
         return 0
     print("RESULT: RELEASE GATES FAIL")
     return 1

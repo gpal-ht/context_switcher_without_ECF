@@ -1,5 +1,0 @@
-run_id: RUN-REASON-TEST-0002
-tasks:
-  - id: TASK-CLASSIFY-0001
-    version: 0.1.0
-    status: completed
