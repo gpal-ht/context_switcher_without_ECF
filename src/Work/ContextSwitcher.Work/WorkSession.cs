@@ -109,6 +109,27 @@ public sealed record WorkSession
             : null;
 
     /// <summary>
+    /// For a CLOSED, timed session: estimate quality in [0, 1], where
+    /// <c>1.0</c> is a perfect estimate and <c>0</c> means off by 100% or more
+    /// (<c>max(0, 1 - |actual - planned| / planned)</c>). Null when untimed or
+    /// still open. Derived, not persisted (ADR-0017).
+    /// </summary>
+    [JsonIgnore]
+    public double? EstimationAccuracy
+    {
+        get
+        {
+            if (Duration is not TimeSpan actual || PlannedDuration is not TimeSpan planned
+                || planned <= TimeSpan.Zero)
+            {
+                return null;
+            }
+            var errorRatio = Math.Abs((actual - planned).Ticks) / (double)planned.Ticks;
+            return Math.Max(0.0, 1.0 - errorRatio);
+        }
+    }
+
+    /// <summary>
     /// Time left on the focus timer at <paramref name="now"/> (may be negative
     /// once elapsed), or null when the session is untimed or already ended.
     /// </summary>

@@ -65,6 +65,9 @@ public sealed class ShellViewModel : ObservableObject
     private string _blockersText = "";
     public string BlockersText { get => _blockersText; private set => Set(ref _blockersText, value); }
 
+    private string _estimationText = "";
+    public string EstimationText { get => _estimationText; private set => Set(ref _estimationText, value); }
+
     // ---- Commands ----------------------------------------------------------
     public RelayCommand AddProjectCommand { get; }
     public RelayCommand SwitchCommand { get; }
@@ -297,6 +300,7 @@ public sealed class ShellViewModel : ObservableObject
         ResumeBriefText = BuildResumeBrief();
         InsightsText = BuildInsightsText();
         BlockersText = BuildBlockersText();
+        EstimationText = BuildEstimationText();
 
         // Choose which project's history to show: keep the current choice if it
         // still exists, otherwise default to the active project (ADR-0014).
@@ -357,6 +361,32 @@ public sealed class ShellViewModel : ObservableObject
         }
         return string.Join(Environment.NewLine,
             recurring.Take(5).Select(b => $"{b.Count}× {b.Text}"));
+    }
+
+    private string BuildEstimationText()
+    {
+        var t = _sessions.ComputeEstimationTrend(); // all projects (ADR-0017)
+        if (t.TimedCount == 0)
+        {
+            return "No timed sessions yet — set a focus timer to track this.";
+        }
+        var lines = new List<string>
+        {
+            $"{t.AverageAccuracyPercent:0}% accurate over {t.TimedCount} timed sessions",
+            t.Bias switch
+            {
+                EstimationBias.UnderEstimates => $"Tends to under-estimate (runs ~{FormatSpan(t.AverageError)} over)",
+                EstimationBias.OverEstimates => $"Tends to over-estimate (finishes ~{FormatSpan(-t.AverageError)} early)",
+                _ => "Well-calibrated (within ~10% of plan)",
+            },
+        };
+        if (t.Improving is bool improving)
+        {
+            var word = improving ? "improving"
+                     : t.RecentAccuracyPercent < t.EarlierAccuracyPercent ? "declining" : "steady";
+            lines.Add($"Trend: {word} (recent {t.RecentAccuracyPercent:0}% vs earlier {t.EarlierAccuracyPercent:0}%)");
+        }
+        return string.Join(Environment.NewLine, lines);
     }
 
     private static string FormatSpan(TimeSpan d)
