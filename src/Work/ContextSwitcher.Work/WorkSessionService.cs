@@ -135,11 +135,27 @@ public sealed class WorkSessionService
     {
         var state = _store.Load();
         var activeId = RequireActiveProjectId(state);
-        return state.Sessions
-            .Where(s => s.ProjectId == activeId)
+        return SessionsFor(state, activeId);
+    }
+
+    /// <summary>
+    /// Session history for any project (by name or id), most recent first
+    /// (ADR-0014). Does not change the active project.
+    /// </summary>
+    /// <exception cref="ValidationException">The reference is blank.</exception>
+    /// <exception cref="NotFoundException">No project matches.</exception>
+    public IReadOnlyList<WorkSession> ListSessions(string projectNameOrId)
+    {
+        var state = _store.Load();
+        var project = ProjectLookup.Resolve(state, projectNameOrId);
+        return SessionsFor(state, project.Id);
+    }
+
+    private static IReadOnlyList<WorkSession> SessionsFor(WorkspaceState state, Guid projectId) =>
+        state.Sessions
+            .Where(s => s.ProjectId == projectId)
             .OrderByDescending(s => s.StartedUtc)
             .ToList();
-    }
 
     /// <summary>
     /// Resume brief for the active project: the most recent completed session's

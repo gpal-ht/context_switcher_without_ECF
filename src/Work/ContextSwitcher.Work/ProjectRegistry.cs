@@ -33,7 +33,7 @@ public sealed class ProjectRegistry
         var normalizedDescription = Project.NormalizeDescription(description);
 
         var state = _store.Load();
-        if (FindByName(state, normalizedName) is not null)
+        if (ProjectLookup.FindByName(state, normalizedName) is not null)
         {
             throw new ValidationException(
                 $"A project named '{normalizedName}' already exists (names are case-insensitive).");
@@ -65,6 +65,14 @@ public sealed class ProjectRegistry
             .ToList();
     }
 
+    /// <summary>
+    /// Resolves a project by name or id without changing the active project
+    /// (ADR-0014). Useful for read-only operations like browsing history.
+    /// </summary>
+    /// <exception cref="ValidationException">The reference is blank.</exception>
+    /// <exception cref="NotFoundException">No project matches.</exception>
+    public Project GetProject(string nameOrId) => ProjectLookup.Resolve(_store.Load(), nameOrId);
+
     /// <summary>The active project, or null when none is selected.</summary>
     public Project? GetActiveProject()
     {
@@ -80,7 +88,7 @@ public sealed class ProjectRegistry
     public Project SwitchActiveProject(string nameOrId)
     {
         var state = _store.Load();
-        var project = Resolve(state, nameOrId);
+        var project = ProjectLookup.Resolve(state, nameOrId);
         if (project.Status == ProjectStatus.Archived)
         {
             throw new ValidationException(
@@ -97,7 +105,7 @@ public sealed class ProjectRegistry
     public Project ArchiveProject(string nameOrId)
     {
         var state = _store.Load();
-        var project = Resolve(state, nameOrId);
+        var project = ProjectLookup.Resolve(state, nameOrId);
         if (project.Status == ProjectStatus.Archived)
         {
             throw new ValidationException($"'{project.Name}' is already archived.");
@@ -112,26 +120,5 @@ public sealed class ProjectRegistry
         state.Projects[state.Projects.FindIndex(p => p.Id == project.Id)] = archived;
         _store.Save(state);
         return archived;
-    }
-
-    private static Project? FindByName(WorkspaceState state, string name) =>
-        state.Projects.FirstOrDefault(
-            p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
-
-    /// <summary>Resolves a project by exact id or case-insensitive name.</summary>
-    private static Project Resolve(WorkspaceState state, string nameOrId)
-    {
-        var query = (nameOrId ?? "").Trim();
-        if (query.Length == 0)
-        {
-            throw new ValidationException("A project name or id is required.");
-        }
-        if (Guid.TryParse(query, out var id))
-        {
-            return state.Projects.FirstOrDefault(p => p.Id == id)
-                ?? throw new NotFoundException($"No project has the id '{query}'.");
-        }
-        return FindByName(state, query)
-            ?? throw new NotFoundException($"No project is named '{query}'.");
     }
 }
