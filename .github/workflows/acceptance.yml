@@ -1,0 +1,32 @@
+name: Acceptance
+
+# Trunk protection gate: runs the offline acceptance suite so nothing
+# regresses on develop. The suite is pure bash + .NET (ADR-0008,
+# pure-BCL / no NuGet restore), so it runs on Linux. The WinUI GUI and
+# MSIX packaging (Windows-only, ADR-0020) are out of scope here.
+
+on:
+  push:
+    branches:
+      - develop
+      - "feature/**"
+      - "chore/**"
+      - "ci/**"
+  pull_request:
+    branches:
+      - develop
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Run offline acceptance suite
+        run: bash acceptance_tests/run_all.sh
