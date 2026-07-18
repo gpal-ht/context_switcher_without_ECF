@@ -157,6 +157,21 @@ npm test              # offline acceptance suite (builds + runs product tests)
 npm run app:test      # product build + deterministic Work Engine tests
 ```
 
+## Running and packaging the GUI
+
+The WinUI 3 desktop shell builds with Visual Studio MSBuild (ADR-0011):
+
+```powershell
+powershell -File scripts/build-gui.ps1 -Run     # build + launch the unpackaged app
+powershell -File scripts/package-msix.ps1       # build a signed sideload MSIX (ADR-0020)
+```
+
+`package-msix.ps1` produces an installable **development** MSIX signed with a
+self-signed dev certificate generated under the gitignored `.local/certs/`
+(never committed). Store/production distribution needs a real code-signing
+identity — out of scope. The script prints the install commands, or pass
+`-Install` to import the cert and install in one step.
+
 ---
 
 # Core Documents

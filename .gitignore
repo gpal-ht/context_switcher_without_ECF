@@ -49,3 +49,11 @@ generated/
 
 # Claude Code — machine-specific local overrides (e.g. Visual Studio MSBuild path)
 .claude/settings.local.json
+
+# MSIX packaging (ADR-0020): dev signing material and package output are never committed
+.local/
+**/AppPackages/
+*.msix
+*.msixbundle
+*.pfx
+*.cer
