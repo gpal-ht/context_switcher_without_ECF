@@ -121,6 +121,28 @@
             <TextBlock Text="Resume brief" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
             <TextBlock Text="{Binding ResumeBriefText}" TextWrapping="Wrap" Opacity="0.9" />
 
+            <!-- Next-actions panel (ADR-0025) — best-effort GUI sketch.
+                 Commented out because WinUI 3 does not build in the offline gate.
+                 Enable together with the commented region in ShellViewModel.cs.
+            <TextBlock Text="Next-actions" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
+            <ListView ItemsSource="{Binding OpenNextActions}"
+                      SelectedItem="{Binding SelectedNextAction, Mode=TwoWay}"
+                      Height="100"
+                      BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="work:NextAction">
+                        <TextBlock Text="{x:Bind Text}" Padding="4" TextWrapping="Wrap" />
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBox PlaceholderText="Add a next-action..." MinWidth="220"
+                         Text="{Binding NewNextActionText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <Button Content="Add" Command="{Binding AddNextActionCommand}" />
+                <Button Content="Done" Command="{Binding CompleteNextActionCommand}" />
+            </StackPanel>
+            -->
+
             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0" VerticalAlignment="Center">
                 <TextBlock Text="History for:" Style="{StaticResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" />
                 <ComboBox ItemsSource="{Binding Projects}"

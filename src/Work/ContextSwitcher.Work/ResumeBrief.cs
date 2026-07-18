@@ -22,8 +22,17 @@ public sealed record ResumeBrief
     /// </summary>
     public IReadOnlyList<KnowledgeEntry> RecentKnowledge { get; init; } = Array.Empty<KnowledgeEntry>();
 
+    /// <summary>
+    /// The project's open next-actions at resume time (ADR-0025). Additive;
+    /// empty when the project has none. Distinct from <see cref="NextAction"/>,
+    /// which is the free-text hint the last session left behind.
+    /// </summary>
+    public IReadOnlyList<NextAction> OpenNextActions { get; init; } = Array.Empty<NextAction>();
+
     internal static ResumeBrief FromSession(
-        WorkSession session, IReadOnlyList<KnowledgeEntry>? recentKnowledge = null)
+        WorkSession session,
+        IReadOnlyList<KnowledgeEntry>? recentKnowledge = null,
+        IReadOnlyList<NextAction>? openNextActions = null)
     {
         var wrapUp = session.WrapUp
             ?? throw new InvalidOperationException("A resume brief requires an ended session with a wrap-up.");
@@ -38,6 +47,7 @@ public sealed record ResumeBrief
             FutureSelfNotes = wrapUp.FutureSelfNotes,
             NextAction = wrapUp.NextAction,
             RecentKnowledge = recentKnowledge ?? Array.Empty<KnowledgeEntry>(),
+            OpenNextActions = openNextActions ?? Array.Empty<NextAction>(),
         };
     }
 }

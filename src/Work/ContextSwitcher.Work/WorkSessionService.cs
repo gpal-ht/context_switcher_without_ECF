@@ -482,7 +482,12 @@ public sealed class WorkSessionService
             .OrderByDescending(k => k.CreatedUtc)
             .Take(KnowledgeService.RecentOnResume)
             .ToList();
-        return ResumeBrief.FromSession(lastClosed, recentKnowledge);
+        // Surface the project's open next-actions alongside the wrap-up (ADR-0025).
+        var openActions = state.NextActions
+            .Where(a => a.ProjectId == activeId && a.IsOpen)
+            .OrderBy(a => a.CreatedUtc)
+            .ToList();
+        return ResumeBrief.FromSession(lastClosed, recentKnowledge, openActions);
     }
 
     private static WorkSession? FindOpenSession(WorkspaceState state) =>
