@@ -172,16 +172,51 @@ self-signed dev certificate generated under the gitignored `.local/certs/`
 identity — out of scope. The script prints the install commands, or pass
 `-Install` to import the cert and install in one step.
 
-It also emits a **`.appinstaller`** for App Installer auto-update (ADR-0023):
+It also emits a **`.appinstaller`** for App Installer auto-update (ADR-0023),
+with its URIs pointing at the host you pass in.
+
+## Releasing a new version
+
+Releases are hosted on **GitHub Pages** (the `gh-pages` branch) so installed
+apps update themselves. To cut a release:
 
 ```powershell
-powershell -File scripts/package-msix.ps1 -AppInstallerBaseUrl https://your/host/path
+# 1. Bump <Identity Version="X.Y.Z.0"> in
+#    src/App/ContextSwitcher.App/Package.appxmanifest, then commit.
+
+# 2. Build + sign the MSIX and generate the .appinstaller for the Pages host:
+powershell -File scripts/package-msix.ps1 `
+  -AppInstallerBaseUrl https://gpal-ht.github.io/context_switcher_without_ECF
+
+# 3. Publish the .msix, .appinstaller, public .cer, and a landing page to gh-pages
+#    (prepares a local commit; add -Push to publish):
+powershell -File scripts/publish-appinstaller.ps1 -Push
 ```
 
-Host the `.appinstaller`, `.msix`, and `.cer` at that URL; installed apps then
-check for updates on launch (with a prompt) and in the background. Bump the
-manifest `Version` and re-run to publish an update. Auto-update **requires
-hosting** — the default URL is a placeholder to replace before publishing.
+`publish-appinstaller.ps1` stages the artifacts on an orphan `gh-pages` branch
+in an isolated worktree (the `develop` tree is untouched) and only ever
+publishes the **public** certificate, never the `.pfx`. One-time GitHub setup:
+**Settings → Pages → Source = `gh-pages` / root**. The release then goes live at
+`https://gpal-ht.github.io/context_switcher_without_ECF/`.
+
+## Installing
+
+Because the build is signed with a **self-signed development certificate**, each
+machine must trust it once before installing. In an elevated PowerShell:
+
+```powershell
+# Download and trust the signing certificate:
+Invoke-WebRequest https://gpal-ht.github.io/context_switcher_without_ECF/ContextSwitcher-Dev.cer -OutFile ContextSwitcher-Dev.cer
+Import-Certificate -FilePath ContextSwitcher-Dev.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople
+```
+
+Then open the **`.appinstaller`** to install and subscribe to updates:
+`https://gpal-ht.github.io/context_switcher_without_ECF/ContextSwitcher.appinstaller`
+(or use the Install button on the landing page). App Installer re-checks that
+URL on launch and in the background, and offers new versions with a prompt.
+
+Store/production distribution would need a real code-signing identity — out of
+scope here (ADR-0020); this whole flow is dev-signed / sideload.
 
 ---
 
