@@ -9,7 +9,12 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <RootNamespace>ContextSwitcher.App</RootNamespace>
     <UseWinUI>true</UseWinUI>
-    <WindowsPackageType>None</WindowsPackageType>
+    <!-- Default is unpackaged so `scripts/build-gui.ps1` produces a directly
+         runnable exe. `scripts/package-msix.ps1` passes BuildMsix=true, which
+         leaves WindowsPackageType unset (packaged) to build the MSIX from the
+         same project (ADR-0020). -->
+    <WindowsPackageType Condition="'$(BuildMsix)' != 'true'">None</WindowsPackageType>
+    <EnableMsixTooling>true</EnableMsixTooling>
     <Nullable>enable</Nullable>
     <!-- WinUI XAML code generation can emit warnings we don't control; do not
          fail the GUI build on them (the pure-BCL projects keep warnings-as-errors). -->
@@ -20,5 +25,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Work\ContextSwitcher.Work\ContextSwitcher.Work.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Assets\**" />
   </ItemGroup>
 </Project>
