@@ -172,6 +172,17 @@ self-signed dev certificate generated under the gitignored `.local/certs/`
 identity — out of scope. The script prints the install commands, or pass
 `-Install` to import the cert and install in one step.
 
+It also emits a **`.appinstaller`** for App Installer auto-update (ADR-0023):
+
+```powershell
+powershell -File scripts/package-msix.ps1 -AppInstallerBaseUrl https://your/host/path
+```
+
+Host the `.appinstaller`, `.msix`, and `.cer` at that URL; installed apps then
+check for updates on launch (with a prompt) and in the background. Bump the
+manifest `Version` and re-run to publish an update. Auto-update **requires
+hosting** — the default URL is a placeholder to replace before publishing.
+
 ---
 
 # Core Documents
