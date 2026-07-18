@@ -68,8 +68,9 @@ function Draw-Mark([System.Drawing.Graphics]$g, [double]$cx, [double]$cy, [doubl
     $backPath.Dispose(); $keyPath.Dispose(); $frontPath.Dispose()
 }
 
-# Plated icon: gradient rounded-square background + centered mark.
-function New-Icon([string]$name, [int]$w, [int]$h, [bool]$wordmark = $false) {
+# Renders a plated icon (gradient rounded-square + centered mark) to a Bitmap.
+# Caller disposes the returned Bitmap.
+function Render-IconBitmap([int]$w, [int]$h, [bool]$wordmark = $false) {
     $bmp = New-Object System.Drawing.Bitmap($w, $h)
     $g = [System.Drawing.Graphics]::FromImage($bmp)
     $g.SmoothingMode = 'AntiAlias'
@@ -102,8 +103,49 @@ function New-Icon([string]$name, [int]$w, [int]$h, [bool]$wordmark = $false) {
     }
 
     $grad.Dispose(); $bgPath.Dispose(); $g.Dispose()
+    return $bmp
+}
+
+# Plated icon PNG: renders and saves to the Assets folder.
+function New-Icon([string]$name, [int]$w, [int]$h, [bool]$wordmark = $false) {
+    $bmp = Render-IconBitmap $w $h $wordmark
     $bmp.Save((Join-Path $OutDir $name), [System.Drawing.Imaging.ImageFormat]::Png)
     $bmp.Dispose()
+}
+
+# Multi-size .ico (PNG-compressed entries) for the executable / window (ADR-0022).
+function New-Ico([string]$name, [int[]]$sizes) {
+    $blobs = foreach ($s in $sizes) {
+        $bmp = Render-IconBitmap $s $s $false
+        $ms = New-Object System.IO.MemoryStream
+        $bmp.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
+        $bmp.Dispose()
+        , $ms.ToArray()
+    }
+    $count = $blobs.Count
+    $out = New-Object System.IO.MemoryStream
+    $bw = New-Object System.IO.BinaryWriter($out)
+    $bw.Write([UInt16]0)      # reserved
+    $bw.Write([UInt16]1)      # type: icon
+    $bw.Write([UInt16]$count)
+    $offset = 6 + 16 * $count
+    for ($i = 0; $i -lt $count; $i++) {
+        $s = $sizes[$i]; $len = $blobs[$i].Length
+        $dim = if ($s -ge 256) { 0 } else { $s }   # 0 means 256 in ICO
+        $bw.Write([Byte]$dim)      # width
+        $bw.Write([Byte]$dim)      # height
+        $bw.Write([Byte]0)         # palette colors
+        $bw.Write([Byte]0)         # reserved
+        $bw.Write([UInt16]1)       # color planes
+        $bw.Write([UInt16]32)      # bits per pixel
+        $bw.Write([UInt32]$len)    # bytes in resource
+        $bw.Write([UInt32]$offset) # offset from file start
+        $offset += $len
+    }
+    foreach ($blob in $blobs) { $bw.Write($blob) }
+    $bw.Flush()
+    [System.IO.File]::WriteAllBytes((Join-Path $OutDir $name), $out.ToArray())
+    $bw.Dispose(); $out.Dispose()
 }
 
 # --- Base logos + the scale/target-size variants the manifest resolves --------
@@ -131,6 +173,9 @@ New-Icon 'StoreLogo.scale-200.png'               100  100
 
 New-Icon 'SplashScreen.png'                      620  300  $true
 New-Icon 'SplashScreen.scale-200.png'            1240 600  $true
+
+# Executable / window icon (ADR-0022).
+New-Ico  'app.ico' @(16, 24, 32, 48, 64, 128, 256)
 
 Get-ChildItem $OutDir -Filter *.png | Sort-Object Name | ForEach-Object {
     Write-Output ("  " + $_.Name + " (" + $_.Length + " bytes)")
