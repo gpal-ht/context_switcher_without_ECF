@@ -19,6 +19,7 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         Title = "Context Switcher";
+        TrySetWindowIcon();
 
         var store = new JsonFileWorkspaceStore();
         var projects = new ProjectRegistry(store);
@@ -31,5 +32,26 @@ public sealed partial class MainWindow : Window
         _ticker.Start();
 
         Closed += (_, _) => _ticker.Stop();
+    }
+
+    /// <summary>
+    /// Sets the WinUI window/titlebar icon from the branded app.ico (ADR-0022).
+    /// ApplicationIcon already covers the exe/taskbar; this ensures the titlebar
+    /// too. Guarded — a missing icon is non-fatal.
+    /// </summary>
+    private void TrySetWindowIcon()
+    {
+        try
+        {
+            var icoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
+            if (File.Exists(icoPath))
+            {
+                AppWindow.SetIcon(icoPath);
+            }
+        }
+        catch
+        {
+            // Icon is cosmetic; never let it break startup.
+        }
     }
 }

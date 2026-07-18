@@ -8,6 +8,8 @@
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <RootNamespace>ContextSwitcher.App</RootNamespace>
+    <!-- Branded icon embedded in the exe (Explorer, taskbar, window); ADR-0022. -->
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <UseWinUI>true</UseWinUI>
     <!-- Default is unpackaged so `scripts/build-gui.ps1` produces a directly
          runnable exe. `scripts/package-msix.ps1` passes BuildMsix=true, which
@@ -28,5 +30,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Assets\**" />
+    <!-- Copy the .ico next to the exe so the window can SetIcon at runtime (ADR-0022). -->
+    <Content Update="Assets\app.ico" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
