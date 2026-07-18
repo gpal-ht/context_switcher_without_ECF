@@ -471,7 +471,16 @@ public sealed class WorkSessionService
             .Where(s => s.ProjectId == activeId && !s.IsOpen && s.WrapUp is not null)
             .OrderByDescending(s => s.EndedUtc)
             .FirstOrDefault();
-        return lastClosed is null ? null : ResumeBrief.FromSession(lastClosed);
+        if (lastClosed is null)
+        {
+            return null;
+        }
+        // Surface the project's open next-actions alongside the wrap-up (ADR-0025).
+        var openActions = state.NextActions
+            .Where(a => a.ProjectId == activeId && a.IsOpen)
+            .OrderBy(a => a.CreatedUtc)
+            .ToList();
+        return ResumeBrief.FromSession(lastClosed) with { OpenNextActions = openActions };
     }
 
     private static WorkSession? FindOpenSession(WorkspaceState state) =>

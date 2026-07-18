@@ -14,6 +14,9 @@ namespace ContextSwitcher.Cli;
 ///   session end --outcome &lt;outcome&gt; [--completed &lt;t&gt;] [--unfinished &lt;t&gt;]
 ///               [--blockers &lt;t&gt;] [--notes &lt;t&gt;] [--next &lt;t&gt;]
 ///   session list
+///   todo add [--project &lt;name|id&gt;] &lt;text&gt;   (per-project next-actions, ADR-0025)
+///   todo done &lt;id&gt;
+///   todo list [--project &lt;name|id&gt;] [--all]
 ///   resume
 ///   status
 ///
@@ -30,7 +33,8 @@ public static class Program
             var store = new JsonFileWorkspaceStore();
             var registry = new ProjectRegistry(store);
             var sessions = new WorkSessionService(store);
-            return Run(registry, sessions, args);
+            var todos = new NextActionService(store);
+            return Run(registry, sessions, todos, args);
         }
         catch (ValidationException ex)
         {
@@ -54,7 +58,8 @@ public static class Program
         }
     }
 
-    private static int Run(ProjectRegistry registry, WorkSessionService sessions, string[] args)
+    private static int Run(
+        ProjectRegistry registry, WorkSessionService sessions, NextActionService todos, string[] args)
     {
         switch (args)
         {
@@ -90,8 +95,14 @@ public static class Program
                 return Recommend(sessions, rest);
             case ["next"]:
                 return NextUp(sessions);
+            case ["todo", "add", .. var rest]:
+                return TodoAdd(registry, todos, rest);
+            case ["todo", "done", var idRef]:
+                return TodoDone(todos, idRef);
+            case ["todo", "list", .. var rest]:
+                return TodoList(registry, todos, rest);
             case ["resume"]:
-                return Resume(registry, sessions);
+                return Resume(registry, sessions, todos);
             case ["status"]:
                 return Status(registry, sessions);
             case ["--help"] or ["-h"] or ["help"] or []:
@@ -484,7 +495,7 @@ public static class Program
         return 0;
     }
 
-    private static int Resume(ProjectRegistry registry, WorkSessionService sessions)
+    private static int Resume(ProjectRegistry registry, WorkSessionService sessions, NextActionService todos)
     {
         var active = registry.GetActiveProject();
         if (active is null)
@@ -494,18 +505,133 @@ public static class Program
         }
         var brief = sessions.GetResumeBriefForActiveProject();
         Console.WriteLine($"Resuming '{active.Name}'.");
+        IReadOnlyList<NextAction> openActions;
         if (brief is null)
         {
             Console.WriteLine("No previous wrap-up yet — this is a fresh start.");
-            return 0;
+            openActions = todos.ListOpenNextActionsForActiveProject();
         }
-        Console.WriteLine($"Last session: {FormatOutcome(brief.Outcome)} ({brief.EndedUtc:u}).");
-        WriteFieldIfPresent("Unfinished", brief.UnfinishedWork);
-        WriteFieldIfPresent("Blockers", brief.Blockers);
-        WriteFieldIfPresent("Notes to future you", brief.FutureSelfNotes);
-        WriteFieldIfPresent("Next action", brief.NextAction);
+        else
+        {
+            Console.WriteLine($"Last session: {FormatOutcome(brief.Outcome)} ({brief.EndedUtc:u}).");
+            WriteFieldIfPresent("Unfinished", brief.UnfinishedWork);
+            WriteFieldIfPresent("Blockers", brief.Blockers);
+            WriteFieldIfPresent("Notes to future you", brief.FutureSelfNotes);
+            WriteFieldIfPresent("Next action", brief.NextAction);
+            openActions = brief.OpenNextActions;
+        }
+        if (openActions.Count > 0)
+        {
+            Console.WriteLine($"Open next-actions ({openActions.Count}):");
+            foreach (var a in openActions)
+            {
+                Console.WriteLine($"  [ ] {ShortId(a.Id)}  {a.Text}");
+            }
+            Console.WriteLine("  Complete one with: todo done <id>");
+        }
         return 0;
     }
+
+    private static int TodoAdd(ProjectRegistry registry, NextActionService todos, string[] rest)
+    {
+        string? projectRef = null;
+        var textParts = new List<string>();
+        for (var i = 0; i < rest.Length; i++)
+        {
+            if (rest[i] == "--project")
+            {
+                if (i + 1 >= rest.Length)
+                {
+                    Console.Error.WriteLine(
+                        "error: option '--project' requires a value. " +
+                        "Use: todo add [--project <name|id>] <text>");
+                    return 2;
+                }
+                projectRef = rest[++i];
+            }
+            else
+            {
+                textParts.Add(rest[i]);
+            }
+        }
+        if (textParts.Count == 0)
+        {
+            Console.Error.WriteLine(
+                "error: a next-action needs text. Use: todo add [--project <name|id>] <text>");
+            return 2;
+        }
+        if (projectRef is null)
+        {
+            var active = registry.GetActiveProject();
+            if (active is null)
+            {
+                Console.Error.WriteLine(
+                    "error: no active project. Select one with: project switch <name>, " +
+                    "or target one with --project.");
+                return 2;
+            }
+            projectRef = active.Id.ToString();
+        }
+        var action = todos.AddNextAction(projectRef, string.Join(' ', textParts));
+        Console.WriteLine($"Added next-action {ShortId(action.Id)}: {action.Text}");
+        return 0;
+    }
+
+    private static int TodoDone(NextActionService todos, string idRef)
+    {
+        var done = todos.CompleteNextAction(idRef);
+        Console.WriteLine($"Completed next-action {ShortId(done.Id)}: {done.Text}");
+        return 0;
+    }
+
+    private static int TodoList(ProjectRegistry registry, NextActionService todos, string[] rest)
+    {
+        var all = rest.Contains("--all");
+        var filtered = rest.Where(t => t != "--all").ToArray();
+        if (!TryParseOptions(filtered, new[] { "--project" }, out var opts, out var error))
+        {
+            Console.Error.WriteLine($"error: {error} Use: todo list [--project <name|id>] [--all]");
+            return 2;
+        }
+
+        Project project;
+        if (opts.TryGetValue("--project", out var reference))
+        {
+            project = registry.GetProject(reference);
+        }
+        else
+        {
+            var active = registry.GetActiveProject();
+            if (active is null)
+            {
+                Console.WriteLine("No active project. Select one with: project switch <name>");
+                return 0;
+            }
+            project = active;
+        }
+
+        var actions = todos.ListNextActions(project.Id.ToString());
+        var shown = all ? actions : actions.Where(a => a.IsOpen).ToList();
+        if (shown.Count == 0)
+        {
+            Console.WriteLine(all
+                ? $"No next-actions for '{project.Name}' yet. Add one with: todo add <text>"
+                : $"No open next-actions for '{project.Name}'. Add one with: todo add <text>");
+            return 0;
+        }
+        Console.WriteLine(all
+            ? $"Next-actions for '{project.Name}' (all):"
+            : $"Open next-actions for '{project.Name}':");
+        foreach (var a in shown)
+        {
+            var mark = a.IsOpen ? "[ ]" : "[x]";
+            Console.WriteLine($"  {mark} {ShortId(a.Id)}  {a.Text}");
+        }
+        return 0;
+    }
+
+    /// <summary>Abbreviated id for display; accepted as a prefix by: todo done.</summary>
+    private static string ShortId(Guid id) => id.ToString("N")[..8];
 
     private static int Status(ProjectRegistry registry, WorkSessionService sessions)
     {
@@ -668,6 +794,9 @@ public static class Program
         writer.WriteLine("  context-switcher estimation [--project <name|id>]");
         writer.WriteLine("  context-switcher recommend [--project <name|id>]");
         writer.WriteLine("  context-switcher next");
+        writer.WriteLine("  context-switcher todo add [--project <name|id>] <text>");
+        writer.WriteLine("  context-switcher todo done <id>");
+        writer.WriteLine("  context-switcher todo list [--project <name|id>] [--all]");
         writer.WriteLine("  context-switcher resume");
         writer.WriteLine("  context-switcher status");
         writer.WriteLine();

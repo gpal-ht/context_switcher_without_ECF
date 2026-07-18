@@ -23,4 +23,11 @@ public sealed class WorkspaceState
     /// before sessions existed simply has none.
     /// </summary>
     public List<WorkSession> Sessions { get; set; } = new();
+
+    /// <summary>
+    /// Per-project open work items ("next-actions", ADR-0025). Additive since
+    /// 0.1.0: a file written before this field existed simply has none, and
+    /// deserializes to an empty list.
+    /// </summary>
+    public List<NextAction> NextActions { get; set; } = new();
 }

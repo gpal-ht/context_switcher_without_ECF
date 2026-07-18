@@ -16,6 +16,13 @@ public sealed record ResumeBrief
     public string FutureSelfNotes { get; init; } = "";
     public string NextAction { get; init; } = "";
 
+    /// <summary>
+    /// The project's open next-actions at resume time (ADR-0025). Additive;
+    /// empty when the project has none. Distinct from <see cref="NextAction"/>,
+    /// which is the free-text hint the last session left behind.
+    /// </summary>
+    public IReadOnlyList<NextAction> OpenNextActions { get; init; } = Array.Empty<NextAction>();
+
     internal static ResumeBrief FromSession(WorkSession session)
     {
         var wrapUp = session.WrapUp
