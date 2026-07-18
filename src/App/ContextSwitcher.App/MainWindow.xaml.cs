@@ -24,7 +24,8 @@ public sealed partial class MainWindow : Window
         var store = new JsonFileWorkspaceStore();
         var projects = new ProjectRegistry(store);
         var sessions = new WorkSessionService(store);
-        _viewModel = new ShellViewModel(projects, sessions);
+        var knowledge = new KnowledgeService(store); // ADR-0024
+        _viewModel = new ShellViewModel(projects, sessions, knowledge);
         Root.DataContext = _viewModel;
 
         _ticker = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };

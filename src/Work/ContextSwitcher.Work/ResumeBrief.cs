@@ -16,7 +16,14 @@ public sealed record ResumeBrief
     public string FutureSelfNotes { get; init; } = "";
     public string NextAction { get; init; } = "";
 
-    internal static ResumeBrief FromSession(WorkSession session)
+    /// <summary>
+    /// Recent notes and decisions captured against the project, most recent
+    /// first (ADR-0024). Additive: empty when the project has no knowledge yet.
+    /// </summary>
+    public IReadOnlyList<KnowledgeEntry> RecentKnowledge { get; init; } = Array.Empty<KnowledgeEntry>();
+
+    internal static ResumeBrief FromSession(
+        WorkSession session, IReadOnlyList<KnowledgeEntry>? recentKnowledge = null)
     {
         var wrapUp = session.WrapUp
             ?? throw new InvalidOperationException("A resume brief requires an ended session with a wrap-up.");
@@ -30,6 +37,7 @@ public sealed record ResumeBrief
             Blockers = wrapUp.Blockers,
             FutureSelfNotes = wrapUp.FutureSelfNotes,
             NextAction = wrapUp.NextAction,
+            RecentKnowledge = recentKnowledge ?? Array.Empty<KnowledgeEntry>(),
         };
     }
 }
