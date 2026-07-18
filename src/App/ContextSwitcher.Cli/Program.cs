@@ -14,6 +14,9 @@ namespace ContextSwitcher.Cli;
 ///   session end --outcome &lt;outcome&gt; [--completed &lt;t&gt;] [--unfinished &lt;t&gt;]
 ///               [--blockers &lt;t&gt;] [--notes &lt;t&gt;] [--next &lt;t&gt;]
 ///   session list
+///   note add &lt;text&gt; [--project &lt;ref&gt;]
+///   decision add &lt;text&gt; [--rationale &lt;text&gt;] [--project &lt;ref&gt;]
+///   knowledge list [--project &lt;ref&gt;]
 ///   resume
 ///   status
 ///
@@ -30,7 +33,8 @@ public static class Program
             var store = new JsonFileWorkspaceStore();
             var registry = new ProjectRegistry(store);
             var sessions = new WorkSessionService(store);
-            return Run(registry, sessions, args);
+            var knowledge = new KnowledgeService(store);
+            return Run(registry, sessions, knowledge, args);
         }
         catch (ValidationException ex)
         {
@@ -54,7 +58,9 @@ public static class Program
         }
     }
 
-    private static int Run(ProjectRegistry registry, WorkSessionService sessions, string[] args)
+    private static int Run(
+        ProjectRegistry registry, WorkSessionService sessions,
+        KnowledgeService knowledge, string[] args)
     {
         switch (args)
         {
@@ -90,6 +96,12 @@ public static class Program
                 return Recommend(sessions, rest);
             case ["next"]:
                 return NextUp(sessions);
+            case ["note", "add", var text, .. var rest]:
+                return AddNote(knowledge, text, rest);
+            case ["decision", "add", var text, .. var rest]:
+                return AddDecision(knowledge, text, rest);
+            case ["knowledge", "list", .. var rest]:
+                return ListKnowledge(registry, knowledge, rest);
             case ["resume"]:
                 return Resume(registry, sessions);
             case ["status"]:
@@ -484,6 +496,86 @@ public static class Program
         return 0;
     }
 
+    private static int AddNote(KnowledgeService knowledge, string text, string[] rest)
+    {
+        if (!TryParseOptions(rest, new[] { "--project" }, out var opts, out var error))
+        {
+            Console.Error.WriteLine($"error: {error} Use: note add <text> [--project <name|id>]");
+            return 2;
+        }
+        var entry = knowledge.AddNote(opts.GetValueOrDefault("--project"), text);
+        Console.WriteLine($"Noted ({entry.CreatedUtc:u}): {entry.Text}");
+        return 0;
+    }
+
+    private static int AddDecision(KnowledgeService knowledge, string text, string[] rest)
+    {
+        if (!TryParseOptions(rest, new[] { "--project", "--rationale" }, out var opts, out var error))
+        {
+            Console.Error.WriteLine(
+                $"error: {error} Use: decision add <text> [--rationale <text>] [--project <name|id>]");
+            return 2;
+        }
+        var entry = knowledge.AddDecision(
+            opts.GetValueOrDefault("--project"), text, opts.GetValueOrDefault("--rationale"));
+        Console.WriteLine($"Decided ({entry.CreatedUtc:u}): {entry.Text}");
+        if (entry.HasRationale)
+        {
+            Console.WriteLine($"  Rationale: {entry.Rationale}");
+        }
+        return 0;
+    }
+
+    private static int ListKnowledge(ProjectRegistry registry, KnowledgeService knowledge, string[] rest)
+    {
+        if (!TryParseOptions(rest, new[] { "--project" }, out var opts, out var error))
+        {
+            Console.Error.WriteLine($"error: {error} Use: knowledge list [--project <name|id>]");
+            return 2;
+        }
+        Project project;
+        IReadOnlyList<KnowledgeEntry> entries;
+        if (opts.TryGetValue("--project", out var reference))
+        {
+            project = registry.GetProject(reference);
+            entries = knowledge.ListKnowledge(reference);
+        }
+        else
+        {
+            var active = registry.GetActiveProject();
+            if (active is null)
+            {
+                Console.WriteLine("No active project. Select one with: project switch <name>");
+                return 0;
+            }
+            project = active;
+            entries = knowledge.ListKnowledgeForActiveProject();
+        }
+
+        if (entries.Count == 0)
+        {
+            Console.WriteLine($"No notes or decisions yet for '{project.Name}'. " +
+                              "Capture one with: note add <text>  |  decision add <text>");
+            return 0;
+        }
+        Console.WriteLine($"Knowledge for '{project.Name}' (most recent first):");
+        foreach (var entry in entries)
+        {
+            WriteKnowledgeEntry(entry);
+        }
+        return 0;
+    }
+
+    private static void WriteKnowledgeEntry(KnowledgeEntry entry)
+    {
+        var kind = entry.Kind == KnowledgeKind.Decision ? "decision" : "note";
+        Console.WriteLine($"  [{kind}] {entry.CreatedUtc:u}  {entry.Text}");
+        if (entry.HasRationale)
+        {
+            Console.WriteLine($"           rationale: {entry.Rationale}");
+        }
+    }
+
     private static int Resume(ProjectRegistry registry, WorkSessionService sessions)
     {
         var active = registry.GetActiveProject();
@@ -504,6 +596,14 @@ public static class Program
         WriteFieldIfPresent("Blockers", brief.Blockers);
         WriteFieldIfPresent("Notes to future you", brief.FutureSelfNotes);
         WriteFieldIfPresent("Next action", brief.NextAction);
+        if (brief.RecentKnowledge.Count > 0)
+        {
+            Console.WriteLine("Recent knowledge:");
+            foreach (var entry in brief.RecentKnowledge)
+            {
+                WriteKnowledgeEntry(entry);
+            }
+        }
         return 0;
     }
 
@@ -668,6 +768,10 @@ public static class Program
         writer.WriteLine("  context-switcher estimation [--project <name|id>]");
         writer.WriteLine("  context-switcher recommend [--project <name|id>]");
         writer.WriteLine("  context-switcher next");
+        writer.WriteLine("  context-switcher note add <text> [--project <name|id>]");
+        writer.WriteLine("  context-switcher decision add <text> " +
+                         "[--rationale <text>] [--project <name|id>]");
+        writer.WriteLine("  context-switcher knowledge list [--project <name|id>]");
         writer.WriteLine("  context-switcher resume");
         writer.WriteLine("  context-switcher status");
         writer.WriteLine();

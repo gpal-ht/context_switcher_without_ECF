@@ -13,11 +13,13 @@ public sealed class ShellViewModel : ObservableObject
 {
     private readonly ProjectRegistry _projects;
     private readonly WorkSessionService _sessions;
+    private readonly KnowledgeService _knowledge;
 
-    public ShellViewModel(ProjectRegistry projects, WorkSessionService sessions)
+    public ShellViewModel(ProjectRegistry projects, WorkSessionService sessions, KnowledgeService knowledge)
     {
         _projects = projects;
         _sessions = sessions;
+        _knowledge = knowledge;
 
         AddProjectCommand = new RelayCommand(() => Run(AddProject));
         SwitchCommand = new RelayCommand(() => Run(SwitchToSelected), () => SelectedProject is not null);
@@ -26,6 +28,9 @@ public sealed class ShellViewModel : ObservableObject
         EndSessionCommand = new RelayCommand(() => Run(EndSession), () => OpenSession is not null);
         ExtendCommand = new RelayCommand(() => Run(ExtendSession), () => OpenSession is not null);
         WrapUpNowCommand = new RelayCommand(DismissElapsedPrompt, () => OpenSession is not null);
+        // Knowledge capture (ADR-0024): enabled only when a project is active.
+        AddNoteCommand = new RelayCommand(() => Run(AddNote), () => ActiveProject is not null);
+        AddDecisionCommand = new RelayCommand(() => Run(AddDecision), () => ActiveProject is not null);
         RefreshCommand = new RelayCommand(Refresh);
 
         Refresh();
@@ -38,6 +43,10 @@ public sealed class ShellViewModel : ObservableObject
     public ObservableCollection<Project> Projects { get; } = new();
     public ObservableCollection<SessionRow> History { get; } = new();
     public IReadOnlyList<SessionOutcome> Outcomes { get; } = Enum.GetValues<SessionOutcome>();
+
+    // ---- Knowledge: notes & decisions (ADR-0024) --------------------------
+    // Scoped to the active project, most recent first; mirrors the History list.
+    public ObservableCollection<KnowledgeEntry> Knowledge { get; } = new();
 
     // The project whose history the list shows — defaults to the active project
     // but can be any project, without changing the active project (ADR-0014).
@@ -82,6 +91,8 @@ public sealed class ShellViewModel : ObservableObject
     public RelayCommand EndSessionCommand { get; }
     public RelayCommand ExtendCommand { get; }
     public RelayCommand WrapUpNowCommand { get; }
+    public RelayCommand AddNoteCommand { get; }        // ADR-0024
+    public RelayCommand AddDecisionCommand { get; }    // ADR-0024
     public RelayCommand RefreshCommand { get; }
 
     // ---- New-project inputs ------------------------------------------------
@@ -122,6 +133,16 @@ public sealed class ShellViewModel : ObservableObject
 
     private string _nextAction = "";
     public string NextAction { get => _nextAction; set => Set(ref _nextAction, value); }
+
+    // ---- Knowledge inputs (ADR-0024) --------------------------------------
+    private string _newNoteText = "";
+    public string NewNoteText { get => _newNoteText; set => Set(ref _newNoteText, value); }
+
+    private string _newDecisionText = "";
+    public string NewDecisionText { get => _newDecisionText; set => Set(ref _newDecisionText, value); }
+
+    private string _newDecisionRationale = "";
+    public string NewDecisionRationale { get => _newDecisionRationale; set => Set(ref _newDecisionRationale, value); }
 
     // ---- Derived / display state ------------------------------------------
     public Project? ActiveProject { get; private set; }
@@ -263,6 +284,23 @@ public sealed class ShellViewModel : ObservableObject
         StatusMessage = $"Session ended ({Format(ended.WrapUp!.Outcome)}).";
     }
 
+    // ---- Knowledge command bodies (ADR-0024) ------------------------------
+    private void AddNote()
+    {
+        var entry = _knowledge.AddNote(null, NewNoteText); // null = active project
+        NewNoteText = "";
+        StatusMessage = $"Noted: {entry.Text}";
+    }
+
+    private void AddDecision()
+    {
+        var rationale = NewDecisionRationale.Trim();
+        var entry = _knowledge.AddDecision(null, NewDecisionText, rationale.Length > 0 ? rationale : null);
+        NewDecisionText = "";
+        NewDecisionRationale = "";
+        StatusMessage = $"Decided: {entry.Text}";
+    }
+
     /// <summary>Runs a service action, mapping domain failures to a friendly status.</summary>
     private void Run(Action action)
     {
@@ -326,10 +364,14 @@ public sealed class ShellViewModel : ObservableObject
         SelectedProject = previouslySelected is Guid id
             ? Projects.FirstOrDefault(p => p.Id == id)
             : null;
+        RebuildKnowledge(); // ADR-0024
+
         StartSessionCommand.RaiseCanExecuteChanged();
         EndSessionCommand.RaiseCanExecuteChanged();
         ExtendCommand.RaiseCanExecuteChanged();
         WrapUpNowCommand.RaiseCanExecuteChanged();
+        AddNoteCommand.RaiseCanExecuteChanged();
+        AddDecisionCommand.RaiseCanExecuteChanged();
         Raise(nameof(ActiveProject));
         Raise(nameof(OpenSession));
         Raise(nameof(TimerVisible));
@@ -484,7 +526,34 @@ public sealed class ShellViewModel : ObservableObject
         if (brief.Blockers.Length > 0) lines.Add($"Blockers: {brief.Blockers}");
         if (brief.FutureSelfNotes.Length > 0) lines.Add($"Notes: {brief.FutureSelfNotes}");
         if (brief.NextAction.Length > 0) lines.Add($"Next action: {brief.NextAction}");
+        // Recent notes/decisions folded into the brief (ADR-0024).
+        foreach (var entry in brief.RecentKnowledge)
+        {
+            var kind = entry.Kind == KnowledgeKind.Decision ? "Decision" : "Note";
+            lines.Add($"{kind}: {entry.Text}");
+        }
         return string.Join(Environment.NewLine, lines);
+    }
+
+    /// <summary>Refills the knowledge list for the active project (ADR-0024).</summary>
+    private void RebuildKnowledge()
+    {
+        Knowledge.Clear();
+        if (ActiveProject is null)
+        {
+            return;
+        }
+        try
+        {
+            foreach (var entry in _knowledge.ListKnowledgeForActiveProject())
+            {
+                Knowledge.Add(entry);
+            }
+        }
+        catch (WorkEngineException)
+        {
+            // No active project between refreshes; leave the list empty.
+        }
     }
 
     private void RebuildHistory()

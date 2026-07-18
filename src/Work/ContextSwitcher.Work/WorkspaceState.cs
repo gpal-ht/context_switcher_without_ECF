@@ -23,4 +23,11 @@ public sealed class WorkspaceState
     /// before sessions existed simply has none.
     /// </summary>
     public List<WorkSession> Sessions { get; set; } = new();
+
+    /// <summary>
+    /// Project knowledge: notes and decisions (ADR-0024). Additive since 0.1.0:
+    /// a file written before knowledge capture existed simply has none, and
+    /// deserializes to an empty list.
+    /// </summary>
+    public List<KnowledgeEntry> Knowledge { get; set; } = new();
 }

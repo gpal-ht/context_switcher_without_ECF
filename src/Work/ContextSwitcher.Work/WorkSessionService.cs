@@ -471,7 +471,18 @@ public sealed class WorkSessionService
             .Where(s => s.ProjectId == activeId && !s.IsOpen && s.WrapUp is not null)
             .OrderByDescending(s => s.EndedUtc)
             .FirstOrDefault();
-        return lastClosed is null ? null : ResumeBrief.FromSession(lastClosed);
+        if (lastClosed is null)
+        {
+            return null;
+        }
+        // Fold in recent notes/decisions so returning to a project surfaces the
+        // captured knowledge alongside the last session's reflection (ADR-0024).
+        var recentKnowledge = state.Knowledge
+            .Where(k => k.ProjectId == activeId)
+            .OrderByDescending(k => k.CreatedUtc)
+            .Take(KnowledgeService.RecentOnResume)
+            .ToList();
+        return ResumeBrief.FromSession(lastClosed, recentKnowledge);
     }
 
     private static WorkSession? FindOpenSession(WorkspaceState state) =>
