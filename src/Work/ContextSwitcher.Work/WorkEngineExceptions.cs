@@ -29,3 +29,14 @@ public sealed class StoreCorruptException : WorkEngineException
     public StoreCorruptException(string message) : base(message) { }
     public StoreCorruptException(string message, Exception inner) : base(message, inner) { }
 }
+
+/// <summary>
+/// The store could not be locked exclusively for a guarded update within the
+/// configured timeout — another process or thread holds it. User data is left
+/// untouched; the operation was not applied and can be retried (ADR-0026).
+/// </summary>
+public sealed class StoreLockedException : WorkEngineException
+{
+    public StoreLockedException(string message) : base(message) { }
+    public StoreLockedException(string message, Exception inner) : base(message, inner) { }
+}
