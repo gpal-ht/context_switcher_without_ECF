@@ -14,12 +14,16 @@ public sealed class ShellViewModel : ObservableObject
     private readonly ProjectRegistry _projects;
     private readonly WorkSessionService _sessions;
     private readonly KnowledgeService _knowledge;
+    private readonly NextActionService _todos;
 
-    public ShellViewModel(ProjectRegistry projects, WorkSessionService sessions, KnowledgeService knowledge)
+    public ShellViewModel(
+        ProjectRegistry projects, WorkSessionService sessions,
+        KnowledgeService knowledge, NextActionService todos)
     {
         _projects = projects;
         _sessions = sessions;
         _knowledge = knowledge;
+        _todos = todos;
 
         AddProjectCommand = new RelayCommand(() => Run(AddProject));
         SwitchCommand = new RelayCommand(() => Run(SwitchToSelected), () => SelectedProject is not null);
@@ -31,6 +35,9 @@ public sealed class ShellViewModel : ObservableObject
         // Knowledge capture (ADR-0024): enabled only when a project is active.
         AddNoteCommand = new RelayCommand(() => Run(AddNote), () => ActiveProject is not null);
         AddDecisionCommand = new RelayCommand(() => Run(AddDecision), () => ActiveProject is not null);
+        // Next-actions (ADR-0025): add needs an active project; complete needs a selection.
+        AddNextActionCommand = new RelayCommand(() => Run(AddNextAction), () => ActiveProject is not null);
+        CompleteNextActionCommand = new RelayCommand(() => Run(CompleteNextAction), () => SelectedNextAction is not null);
         RefreshCommand = new RelayCommand(Refresh);
 
         Refresh();
@@ -93,6 +100,8 @@ public sealed class ShellViewModel : ObservableObject
     public RelayCommand WrapUpNowCommand { get; }
     public RelayCommand AddNoteCommand { get; }        // ADR-0024
     public RelayCommand AddDecisionCommand { get; }    // ADR-0024
+    public RelayCommand AddNextActionCommand { get; }      // ADR-0025
+    public RelayCommand CompleteNextActionCommand { get; } // ADR-0025
     public RelayCommand RefreshCommand { get; }
 
     // ---- New-project inputs ------------------------------------------------
@@ -364,7 +373,8 @@ public sealed class ShellViewModel : ObservableObject
         SelectedProject = previouslySelected is Guid id
             ? Projects.FirstOrDefault(p => p.Id == id)
             : null;
-        RebuildKnowledge(); // ADR-0024
+        RebuildKnowledge();   // ADR-0024
+        BuildNextActions();   // ADR-0025
 
         StartSessionCommand.RaiseCanExecuteChanged();
         EndSessionCommand.RaiseCanExecuteChanged();
@@ -372,6 +382,8 @@ public sealed class ShellViewModel : ObservableObject
         WrapUpNowCommand.RaiseCanExecuteChanged();
         AddNoteCommand.RaiseCanExecuteChanged();
         AddDecisionCommand.RaiseCanExecuteChanged();
+        AddNextActionCommand.RaiseCanExecuteChanged();
+        CompleteNextActionCommand.RaiseCanExecuteChanged();
         Raise(nameof(ActiveProject));
         Raise(nameof(OpenSession));
         Raise(nameof(TimerVisible));
@@ -643,55 +655,48 @@ public sealed class ShellViewModel : ObservableObject
         return new string(chars.ToArray());
     }
 
-    // ---- Next-actions panel (ADR-0025) — best-effort GUI sketch ------------
-    // WinUI 3 does not build in the offline gate, so this binding surface is
-    // left as a commented region mirroring the existing panels. To enable it:
-    //   1. Inject NextActionService into the constructor (and construct it in
-    //      App.xaml.cs alongside ProjectRegistry / WorkSessionService).
-    //   2. Uncomment the members below and call BuildNextActions() from Refresh().
-    //   3. Add the matching ListView + TextBox + Buttons to MainWindow.xaml
-    //      (see the commented "Next-actions" panel there).
-    //
-    // private readonly NextActionService _todos;
-    //
-    // public ObservableCollection<NextAction> OpenNextActions { get; } = new();
-    //
-    // private string _newNextActionText = "";
-    // public string NewNextActionText { get => _newNextActionText; set => Set(ref _newNextActionText, value); }
-    //
-    // private NextAction? _selectedNextAction;
-    // public NextAction? SelectedNextAction
-    // {
-    //     get => _selectedNextAction;
-    //     set { if (Set(ref _selectedNextAction, value)) { CompleteNextActionCommand.RaiseCanExecuteChanged(); } }
-    // }
-    //
-    // public RelayCommand AddNextActionCommand { get; }        // = new(() => Run(AddNextAction), () => ActiveProject is not null);
-    // public RelayCommand CompleteNextActionCommand { get; }   // = new(() => Run(CompleteNextAction), () => SelectedNextAction is not null);
-    //
-    // private void AddNextAction()
-    // {
-    //     if (ActiveProject is null) throw new ValidationException("Select a project first.");
-    //     _todos.AddNextAction(ActiveProject.Id.ToString(), NewNextActionText);
-    //     NewNextActionText = "";
-    //     StatusMessage = "Next-action added.";
-    // }
-    //
-    // private void CompleteNextAction()
-    // {
-    //     var target = SelectedNextAction ?? throw new ValidationException("Select a next-action first.");
-    //     _todos.CompleteNextAction(target.Id.ToString());
-    //     StatusMessage = "Next-action completed.";
-    // }
-    //
-    // private void BuildNextActions()   // call from Refresh()
-    // {
-    //     OpenNextActions.Clear();
-    //     if (ActiveProject is null) return;
-    //     try
-    //     {
-    //         foreach (var a in _todos.ListOpenNextActionsForActiveProject()) OpenNextActions.Add(a);
-    //     }
-    //     catch (WorkEngineException) { /* no active project between refreshes */ }
-    // }
+    // ---- Next-actions panel (ADR-0025) ------------------------------------
+    // Open next-actions for the active project, oldest first; mirrors the
+    // Knowledge/History panels. Refilled by BuildNextActions() on every Refresh.
+    public ObservableCollection<NextAction> OpenNextActions { get; } = new();
+
+    private string _newNextActionText = "";
+    public string NewNextActionText { get => _newNextActionText; set => Set(ref _newNextActionText, value); }
+
+    private NextAction? _selectedNextAction;
+    public NextAction? SelectedNextAction
+    {
+        get => _selectedNextAction;
+        set { if (Set(ref _selectedNextAction, value)) { CompleteNextActionCommand.RaiseCanExecuteChanged(); } }
+    }
+
+    private void AddNextAction()
+    {
+        if (ActiveProject is null) throw new ValidationException("Select a project first.");
+        _todos.AddNextAction(ActiveProject.Id.ToString(), NewNextActionText);
+        NewNextActionText = "";
+        StatusMessage = "Next-action added.";
+    }
+
+    private void CompleteNextAction()
+    {
+        var target = SelectedNextAction ?? throw new ValidationException("Select a next-action first.");
+        _todos.CompleteNextAction(target.Id.ToString());
+        StatusMessage = "Next-action completed.";
+    }
+
+    /// <summary>Refills the open-next-actions list for the active project (ADR-0025).</summary>
+    private void BuildNextActions()
+    {
+        OpenNextActions.Clear();
+        if (ActiveProject is null) return;
+        try
+        {
+            foreach (var a in _todos.ListOpenNextActionsForActiveProject()) OpenNextActions.Add(a);
+        }
+        catch (WorkEngineException)
+        {
+            // No active project between refreshes; leave the list empty.
+        }
+    }
 }

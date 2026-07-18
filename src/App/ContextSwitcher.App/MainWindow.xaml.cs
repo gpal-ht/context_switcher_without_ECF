@@ -25,7 +25,8 @@ public sealed partial class MainWindow : Window
         var projects = new ProjectRegistry(store);
         var sessions = new WorkSessionService(store);
         var knowledge = new KnowledgeService(store); // ADR-0024
-        _viewModel = new ShellViewModel(projects, sessions, knowledge);
+        var todos = new NextActionService(store);    // ADR-0025
+        _viewModel = new ShellViewModel(projects, sessions, knowledge, todos);
         Root.DataContext = _viewModel;
 
         _ticker = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
