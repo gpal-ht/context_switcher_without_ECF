@@ -55,5 +55,6 @@ generated/
 **/AppPackages/
 *.msix
 *.msixbundle
+*.appinstaller
 *.pfx
 *.cer

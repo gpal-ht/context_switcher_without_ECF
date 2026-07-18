@@ -34,12 +34,16 @@
 param(
     [ValidateSet("Release", "Debug")] [string] $Configuration = "Release",
     [string] $MSBuildPath,
+    # Base URL where the .appinstaller and .msix will be hosted (ADR-0023).
+    # The default is a clearly-fake placeholder to replace before publishing.
+    [string] $AppInstallerBaseUrl = "https://REPLACE-WITH-YOUR-HOST.example/context-switcher",
     [switch] $Install
 )
 $ErrorActionPreference = "Stop"
 
-$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$Project  = Join-Path $RepoRoot "src\App\ContextSwitcher.App\ContextSwitcher.App.csproj"
+$RepoRoot   = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$Project    = Join-Path $RepoRoot "src\App\ContextSwitcher.App\ContextSwitcher.App.csproj"
+$ManifestPath = Join-Path $RepoRoot "src\App\ContextSwitcher.App\Package.appxmanifest"
 if (-not (Test-Path $Project)) { throw "App project not found: $Project" }
 
 # Dev signing material lives in a gitignored local directory — never committed.
@@ -142,9 +146,51 @@ if ($LASTEXITCODE -ne 0) { throw "Signing failed ($LASTEXITCODE)." }
 
 Write-Host ""
 Write-Host "MSIX built: $($msix.FullName)" -ForegroundColor Green
+
+# --- .appinstaller for App Installer auto-update (ADR-0023) -------------------
+# Built from the manifest identity so it never drifts from the package. The
+# base URL is where the operator will HOST the .appinstaller and .msix.
+[xml]$manifest = Get-Content $ManifestPath
+$idName    = $manifest.Package.Identity.Name
+$idPub     = $manifest.Package.Identity.Publisher
+$idVersion = $manifest.Package.Identity.Version
+$baseUrl   = $AppInstallerBaseUrl.TrimEnd('/')
+$appInstallerName = "ContextSwitcher.appinstaller"
+$appInstallerPath = Join-Path $msix.DirectoryName $appInstallerName
+
+$xml = @"
+<?xml version="1.0" encoding="utf-8"?>
+<AppInstaller
+    xmlns="http://schemas.microsoft.com/appx/appinstaller/2018"
+    Version="$idVersion"
+    Uri="$baseUrl/$appInstallerName">
+  <MainPackage
+    Name="$idName"
+    Publisher="$idPub"
+    Version="$idVersion"
+    ProcessorArchitecture="x64"
+    Uri="$baseUrl/$($msix.Name)" />
+  <UpdateSettings>
+    <OnLaunch HoursBetweenUpdateChecks="0" ShowPrompt="true" />
+    <AutomaticBackgroundTask />
+  </UpdateSettings>
+</AppInstaller>
+"@
+[System.IO.File]::WriteAllText($appInstallerPath, $xml, (New-Object System.Text.UTF8Encoding($false)))
+Write-Host "AppInstaller written: $appInstallerPath" -ForegroundColor Green
+if ($baseUrl -like "*REPLACE-WITH-YOUR-HOST*") {
+    Write-Warning "The .appinstaller uses a PLACEHOLDER host URL. Re-run with -AppInstallerBaseUrl <https://your/host/path> before publishing."
+}
+Write-Host ""
+Write-Host "Auto-update: host the .appinstaller, the .msix, and the .cer at:"
+Write-Host "  $baseUrl/"
+Write-Host "Users install/subscribe once via the .appinstaller (App Installer then"
+Write-Host "checks for updates on launch and in the background). Bump the manifest"
+Write-Host "Version and re-run to publish an update."
+Write-Host ""
 Write-Host "Public cert (import to Local Machine > Trusted People to trust it): $CerPath"
 Write-Host ""
-Write-Host "To install (elevated PowerShell):"
+Write-Host "To install the MSIX directly (elevated PowerShell):"
 Write-Host "  Import-Certificate -FilePath '$CerPath' -CertStoreLocation Cert:\LocalMachine\TrustedPeople"
 Write-Host "  Add-AppxPackage -Path '$($msix.FullName)'"
 
