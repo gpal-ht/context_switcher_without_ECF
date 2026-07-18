@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AppInstaller
+    xmlns="http://schemas.microsoft.com/appx/appinstaller/2018"
+    Version="0.3.0.0"
+    Uri="https://gpal-ht.github.io/context_switcher_without_ECF/ContextSwitcher.appinstaller">
+  <MainPackage
+    Name="gpal-ht.ContextSwitcher"
+    Publisher="CN=ContextSwitcher Dev"
+    Version="0.3.0.0"
+    ProcessorArchitecture="x64"
+    Uri="https://gpal-ht.github.io/context_switcher_without_ECF/ContextSwitcher.App_0.3.0.0_x64.msix" />
+  <UpdateSettings>
+    <OnLaunch HoursBetweenUpdateChecks="0" ShowPrompt="true" />
+    <AutomaticBackgroundTask />
+  </UpdateSettings>
+</AppInstaller>

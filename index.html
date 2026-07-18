@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Context Switcher - install</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 3rem auto; padding: 0 1rem; line-height: 1.5; }
+    code { background: #f2f2f2; padding: .1rem .3rem; border-radius: 3px; }
+    .btn { display: inline-block; margin: 1rem 0; padding: .6rem 1rem; background: #2B2D7A; color: #fff; text-decoration: none; border-radius: 6px; }
+    small { color: #666; }
+  </style>
+</head>
+<body>
+  <h1>Context Switcher <small>0.3.0.0</small></h1>
+  <p>An AI-assisted personal work-context application for Windows (development / sideload build).</p>
+  <p><a class="btn" href="./ContextSwitcher.appinstaller">Install / subscribe (App Installer)</a></p>
+  <h2>First time - trust the signing certificate</h2>
+  <p>This is a self-signed <em>development</em> build. Download
+     <a href="./ContextSwitcher-Dev.cer">ContextSwitcher-Dev.cer</a> and import it once
+     (elevated PowerShell):</p>
+  <pre><code>Import-Certificate -FilePath ContextSwitcher-Dev.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople</code></pre>
+  <p>Then open the Install button above. App Installer checks this page on launch and
+     in the background, and offers new versions automatically.</p>
+  <p><small>Direct package: <a href="./ContextSwitcher.App_0.3.0.0_x64.msix">ContextSwitcher.App_0.3.0.0_x64.msix</a></small></p>
+</body>
+</html>
